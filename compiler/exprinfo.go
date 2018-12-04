@@ -12,23 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package script
+package compiler
 
-import "github.com/xav/go-script/vm"
+import (
+	"go/token"
+)
 
-type stmtCode struct {
-	world *World
-	code  vm.Code
-}
-
-func (s *stmtCode) Type() vm.Type {
-	return nil
-}
-
-func (s *stmtCode) Run() (vm.Value, error) {
-	t := new(vm.Thread)
-	t.Frame = s.world.scope.NewFrame(nil)
-	return nil, t.Try(func(t *vm.Thread) {
-		s.code.Exec(t)
-	})
+// ExprInfo stores information needed to compile any expression node.
+// Each expr also stores its exprInfo so further expressions can be compiled from it.
+type ExprInfo struct {
+	*Compiler
+	pos token.Pos
 }

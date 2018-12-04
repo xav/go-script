@@ -12,23 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package script
+package values
 
 import "github.com/xav/go-script/vm"
 
-type stmtCode struct {
-	world *World
-	code  vm.Code
+type Map interface {
+	Len(*vm.Thread) int64
+	// Retrieve an element from the map, returning nil if it does not exist.
+	Elem(t *vm.Thread, key interface{}) vm.Value
+	// Set an entry in the map. If val is nil, delete the entry.
+	SetElem(t *vm.Thread, key interface{}, val vm.Value)
+	// TODO:  Perhaps there should be an iterator interface instead.
+	Iter(func(key interface{}, val vm.Value) bool)
 }
 
-func (s *stmtCode) Type() vm.Type {
-	return nil
-}
-
-func (s *stmtCode) Run() (vm.Value, error) {
-	t := new(vm.Thread)
-	t.Frame = s.world.scope.NewFrame(nil)
-	return nil, t.Try(func(t *vm.Thread) {
-		s.code.Exec(t)
-	})
+type MapValue interface {
+	vm.Value
+	Get(*vm.Thread) Map
+	Set(*vm.Thread, Map)
 }

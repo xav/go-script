@@ -24,6 +24,7 @@ import (
 
 	"github.com/xav/go-script/compiler"
 	"github.com/xav/go-script/context"
+	"github.com/xav/go-script/types"
 	"github.com/xav/go-script/vm"
 )
 
@@ -138,6 +139,7 @@ func (w *World) CompilePackage(fset *token.FileSet, files []*ast.File, pkgPath s
 	return packageCode, nil
 }
 
+// compileDeclList compiles a list of declaration nodes
 func (w *World) compileDeclList(fset *token.FileSet, decls []ast.Decl) (Runnable, error) {
 	stmts := make([]ast.Stmt, len(decls))
 	for i, d := range decls {
@@ -145,39 +147,45 @@ func (w *World) compileDeclList(fset *token.FileSet, decls []ast.Decl) (Runnable
 			Decl: d,
 		}
 	}
-	return w.CompileStmtList(fset, stmts)
+	return w.compileStmtList(fset, stmts)
 }
 
-func (w *World) CompileStmtList(fset *token.FileSet, stmts []ast.Stmt) (Runnable, error) {
+// compileStmtList compiles a list of statement nodes
+func (w *World) compileStmtList(fset *token.FileSet, stmts []ast.Stmt) (Runnable, error) {
 	if len(stmts) == 1 {
 		if s, ok := stmts[0].(*ast.ExprStmt); ok {
-			return w.CompileExpr(fset, s.X)
+			return w.compileExpr(fset, s.X)
 		}
 	}
 
 	errors := new(scanner.ErrorList)
-	pc := &compiler.PackageCompiler{fset, errors, 0, 0}
+	cc := &compiler.Compiler{
+		FSet:         fset,
+		Errors:       errors,
+		NumErrors:    0,
+		SilentErrors: 0,
+	}
 	cb := compiler.NewCodeBuf()
 	fc := &compiler.FuncCompiler{
-		PackageCompiler: pc,
-		FnType:          nil,
-		OutVarsNamed:    false,
-		CodeBuf:         cb,
-		Flow:            compiler.NewFlowBuf(cb),
-		Labels:          make(map[string]*compiler.Label),
+		Compiler:     cc,
+		FnType:       nil,
+		OutVarsNamed: false,
+		CodeBuf:      cb,
+		Flow:         compiler.NewFlowBuf(cb),
+		Labels:       make(map[string]*compiler.Label),
 	}
 	bc := &compiler.BlockCompiler{
 		FuncCompiler: fc,
 		Block:        w.scope.Block,
 	}
-	nerr := pc.NumError()
+	nerr := cc.NumError()
 
 	for _, stmt := range stmts {
 		bc.CompileStmt(stmt)
 	}
 	fc.CheckLabels()
 
-	if nerr != pc.NumError() {
+	if nerr != cc.NumError() {
 		errors.Sort()
 		return nil, errors.Err()
 	}
@@ -189,8 +197,42 @@ func (w *World) CompileStmtList(fset *token.FileSet, stmts []ast.Stmt) (Runnable
 
 }
 
-func (w *World) CompileExpr(fset *token.FileSet, e ast.Expr) (Runnable, error) {
-	panic("NOT IMPLEMENTED")
+// compileExpr compiles expression nodes
+func (w *World) compileExpr(fset *token.FileSet, e ast.Expr) (Runnable, error) {
+	errors := new(scanner.ErrorList)
+	cc := &compiler.Compiler{
+		FSet:         fset,
+		Errors:       errors,
+		NumErrors:    0,
+		SilentErrors: 0,
+	}
+
+	ec := cc.CompileExpr(w.scope.Block, false, e)
+	if ec == nil {
+		errors.Sort()
+		return nil, errors.Err()
+	}
+
+	var eval func(vm.Value, *vm.Thread)
+	switch t := ec.ExprType.(type) {
+	// case *types.IdealIntType:
+	// 	// nothing
+	// case *types.FloatType:
+	// 	// nothing
+	default:
+		if tm, ok := t.(*types.MultiType); ok && len(tm.Elems) == 0 {
+			return &stmtCode{
+				world: w,
+				code:  vm.Code{ec.Exec},
+			}, nil
+		}
+		// eval = compiler.GenAssign(ec.Type, ec)
+	}
+	return &ExprCode{
+		world: w,
+		expr:  ec,
+		eval:  eval,
+	}, nil
 }
 
 func (w *World) Compile(fset *token.FileSet, text string) (Runnable, error) {

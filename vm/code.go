@@ -14,7 +14,8 @@
 
 package vm
 
-type Code []func(*Thread)
+type CodeInstruction func(*Thread)
+type Code []CodeInstruction
 
 func (code Code) Exec(t *Thread) {
 	opc := t.PC

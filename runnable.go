@@ -16,6 +16,7 @@ package script
 
 import "github.com/xav/go-script/vm"
 
+// Runnable represents code runnable by the vm
 type Runnable interface {
 	Type() vm.Type          // The type of the value Run returns, or nil if Run returns nil.
 	Run() (vm.Value, error) // Run runs the code; if the code is a single expression with a value, it returns the value; otherwise it returns nil.

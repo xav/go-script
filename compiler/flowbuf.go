@@ -56,7 +56,7 @@ func NewFlowBuf(cb *CodeBuf) *FlowBuf {
 // GotosObeyScopes returns true if no goto statement causes any variables to come
 // into scope that were not in scope at the point of the goto.
 // Reports any errors using the specified compiler.
-func (f *FlowBuf) gotosObeyScopes(pc *PackageCompiler) {
+func (f *FlowBuf) gotosObeyScopes(pc *Compiler) {
 	for pos, src := range f.gotos {
 		tgt := f.labels[src.target]
 

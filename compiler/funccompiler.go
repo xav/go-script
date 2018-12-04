@@ -20,12 +20,12 @@ import (
 
 // FuncCompiler captures information used throughout the compilation of a single function body.
 type FuncCompiler struct {
-	*PackageCompiler                   // The PackageCompiler for the package enclosing this function.
-	*CodeBuf                           //
-	FnType           *types.FuncType   //
-	OutVarsNamed     bool              // Whether the out variables are named. This affects what kinds of return statements are legal.
-	Flow             *FlowBuf          //
-	Labels           map[string]*Label //
+	*Compiler                      // The Compiler for the package enclosing this function.
+	*CodeBuf                       //
+	FnType       *types.FuncType   //
+	OutVarsNamed bool              // Whether the out variables are named. This affects what kinds of return statements are legal.
+	Flow         *FlowBuf          //
+	Labels       map[string]*Label //
 }
 
 // CheckLabels checks that labels were resolved and that all jumps obey scoping rules.
@@ -44,5 +44,5 @@ func (fc *FuncCompiler) CheckLabels() {
 
 	// Executing a "goto" statement must not cause any variables to come
 	// into scope that were not already in scope at the point of the goto.
-	fc.Flow.gotosObeyScopes(fc.PackageCompiler)
+	fc.Flow.gotosObeyScopes(fc.Compiler)
 }

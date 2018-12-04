@@ -14,21 +14,37 @@
 
 package script
 
-import "github.com/xav/go-script/vm"
+import (
+	"github.com/xav/go-script/compiler"
+	"github.com/xav/go-script/vm"
+)
 
-type stmtCode struct {
+type ExprCode struct {
 	world *World
-	code  vm.Code
+	expr  *compiler.Expr
+	eval  func(vm.Value, *vm.Thread)
 }
 
-func (s *stmtCode) Type() vm.Type {
-	return nil
+func (e *ExprCode) Type() vm.Type {
+	return e.expr.ExprType
 }
 
-func (s *stmtCode) Run() (vm.Value, error) {
+func (e *ExprCode) Run() (vm.Value, error) {
 	t := new(vm.Thread)
-	t.Frame = s.world.scope.NewFrame(nil)
-	return nil, t.Try(func(t *vm.Thread) {
-		s.code.Exec(t)
+	t.Frame = e.world.scope.NewFrame(nil)
+
+	switch e.expr.ExprType.(type) {
+	// case *types.BigIntType:
+	// 	return &values.BigIntV{e.expr.AsBigInt()()}, nil
+	// case *types.BigFloatType:
+	// 	return &values.BigFloatV{e.expr.AsBigFloat()()}, nil
+	}
+
+	v := e.expr.ExprType.Zero()
+	eval := e.eval
+	err := t.Try(func(t *vm.Thread) {
+		eval(v, t)
 	})
+
+	return v, err
 }

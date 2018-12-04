@@ -16,12 +16,15 @@ package compiler
 
 import (
 	"fmt"
+	"go/ast"
 	"go/scanner"
 	"go/token"
+
+	"github.com/xav/go-script/context"
 )
 
-// PackageCompiler captures information used throughout a package compilation.
-type PackageCompiler struct {
+// Compiler captures information used throughout a package compilation.
+type Compiler struct {
 	FSet         *token.FileSet
 	Errors       *scanner.ErrorList
 	NumErrors    int
@@ -29,12 +32,16 @@ type PackageCompiler struct {
 }
 
 // Reports a compilation error att the specified position
-func (pc *PackageCompiler) errorAt(pos token.Pos, format string, args ...interface{}) {
-	pc.Errors.Add(pc.FSet.Position(pos), fmt.Sprintf(format, args...))
-	pc.NumErrors++
+func (cc *Compiler) errorAt(pos token.Pos, format string, args ...interface{}) {
+	cc.Errors.Add(cc.FSet.Position(pos), fmt.Sprintf(format, args...))
+	cc.NumErrors++
 }
 
 // NumError returns the total number of errors detected yet
-func (pc *PackageCompiler) NumError() int {
-	return pc.NumErrors + pc.SilentErrors
+func (cc *Compiler) NumError() int {
+	return cc.NumErrors + cc.SilentErrors
+}
+
+func (cc *Compiler) CompileExpr(b *context.Block, constant bool, expr ast.Expr) *Expr {
+	panic("NOT IMPLEMENTED")
 }
