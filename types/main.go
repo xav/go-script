@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package context
+package types
 
 import (
 	"github.com/rs/zerolog/log"
 )
 
-var logger = log.With().Str("component", "script.context").Logger()
+var logger = log.With().Str("component", "script.types").Logger()

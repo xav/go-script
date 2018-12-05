@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"go/token"
 
-	"github.com/rs/zerolog/log"
-
 	"github.com/xav/go-script/vm"
 )
 
@@ -75,7 +73,7 @@ func (t *NamedType) Zero() vm.Value {
 // Complete marks this named type as completed
 func (t *NamedType) Complete(def vm.Type) {
 	if !t.Incomplete {
-		log.Panic().
+		logger.Panic().
 			Str("type", fmt.Sprintf("%+v", *t)).
 			Msg("cannot complete already completed NamedType")
 	}
