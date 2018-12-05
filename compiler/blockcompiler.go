@@ -29,5 +29,10 @@ type BlockCompiler struct {
 }
 
 func (bc *BlockCompiler) CompileStmt(stmt ast.Stmt) {
-	panic("NOT IMPLEMENTED")
+	sc := &stmtCompiler{
+		BlockCompiler: bc,
+		pos:           stmt.Pos(),
+		stmtLabel:     nil,
+	}
+	sc.compile(stmt)
 }

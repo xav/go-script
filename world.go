@@ -16,8 +16,11 @@ package script
 
 import (
 	"go/ast"
+	"go/build"
+	"go/parser"
 	"go/scanner"
 	"go/token"
+	"path/filepath"
 	"strconv"
 
 	"github.com/pkg/errors"
@@ -92,7 +95,7 @@ func (w *World) CompilePackage(fset *token.FileSet, files []*ast.File, pkgPath s
 			continue
 		}
 
-		importFiles, err := findPkgFiles(path)
+		importFiles, err := loadPkgFiles(path)
 		if err != nil {
 			return nil, errors.Wrapf(err, "could not retrieve files for package [%s]", path)
 		}
@@ -108,7 +111,7 @@ func (w *World) CompilePackage(fset *token.FileSet, files []*ast.File, pkgPath s
 		}
 	}
 
-	// We treat each package as the "main" one during compilation
+	// We treat each package as the root of the world during compilation
 	prevScope := w.scope
 	w.scope = w.scope.EnterChildScope()
 	w.scope.Global = true
@@ -158,14 +161,14 @@ func (w *World) compileStmtList(fset *token.FileSet, stmts []ast.Stmt) (Runnable
 		}
 	}
 
-	errors := new(scanner.ErrorList)
+	errs := new(scanner.ErrorList)
+	cb := compiler.NewCodeBuf()
 	cc := &compiler.Compiler{
 		FSet:         fset,
-		Errors:       errors,
+		Errors:       errs,
 		NumErrors:    0,
 		SilentErrors: 0,
 	}
-	cb := compiler.NewCodeBuf()
 	fc := &compiler.FuncCompiler{
 		Compiler:     cc,
 		FnType:       nil,
@@ -186,8 +189,8 @@ func (w *World) compileStmtList(fset *token.FileSet, stmts []ast.Stmt) (Runnable
 	fc.CheckLabels()
 
 	if nerr != cc.NumError() {
-		errors.Sort()
-		return nil, errors.Err()
+		errs.Sort()
+		return nil, errs.Err()
 	}
 
 	return &stmtCode{
@@ -199,18 +202,18 @@ func (w *World) compileStmtList(fset *token.FileSet, stmts []ast.Stmt) (Runnable
 
 // compileExpr compiles expression nodes
 func (w *World) compileExpr(fset *token.FileSet, e ast.Expr) (Runnable, error) {
-	errors := new(scanner.ErrorList)
+	errs := new(scanner.ErrorList)
 	cc := &compiler.Compiler{
 		FSet:         fset,
-		Errors:       errors,
+		Errors:       errs,
 		NumErrors:    0,
 		SilentErrors: 0,
 	}
 
 	ec := cc.CompileExpr(w.scope.Block, false, e)
 	if ec == nil {
-		errors.Sort()
-		return nil, errors.Err()
+		errs.Sort()
+		return nil, errs.Err()
 	}
 
 	var eval func(vm.Value, *vm.Thread)
@@ -235,12 +238,23 @@ func (w *World) compileExpr(fset *token.FileSet, e ast.Expr) (Runnable, error) {
 	}, nil
 }
 
-func (w *World) Compile(fset *token.FileSet, text string) (Runnable, error) {
-	panic("NOT IMPLEMENTED")
-}
+// loadPkgFiles finds and loads the files for the specified package.
+func loadPkgFiles(path string) ([]*ast.File, error) {
+	pkg, err := build.Import(path, "", 0)
+	if err != nil {
+		return nil, err
+	}
 
-////////////////////////////////////////////////////////////////////////////////
+	fset := token.NewFileSet()
+	var files []*ast.File
+	for i := range pkg.GoFiles {
+		pkgfile := filepath.Join(pkg.Dir, pkg.GoFiles[i])
+		f, err := parser.ParseFile(fset, pkgfile, nil, 0)
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, f)
+	}
 
-func findPkgFiles(path string) ([]*ast.File, error) {
-	panic("NOT IMPLEMENTED")
+	return files, nil
 }

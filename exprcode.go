@@ -19,16 +19,19 @@ import (
 	"github.com/xav/go-script/vm"
 )
 
+// ExprCode is the runnable form of an expression node
 type ExprCode struct {
 	world *World
 	expr  *compiler.Expr
 	eval  func(vm.Value, *vm.Thread)
 }
 
+// Type returns the type of the expression
 func (e *ExprCode) Type() vm.Type {
 	return e.expr.ExprType
 }
 
+// Run the code of the expression
 func (e *ExprCode) Run() (vm.Value, error) {
 	t := new(vm.Thread)
 	t.Frame = e.world.scope.NewFrame(nil)
