@@ -20,6 +20,7 @@ import "github.com/xav/go-script/vm"
 type Scope struct {
 	// The root block of this scope.
 	*Block
+
 	// The maximum number of variables required at any point in this Scope.
 	// This determines the number of slots needed in the Frame created from this Scope at run-time.
 	MaxVars int

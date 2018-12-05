@@ -18,7 +18,7 @@ import "github.com/xav/go-script/context"
 
 var universe = newUniverse()
 
-// Universe is a special scope for the universe for all the worlds.
+// Universe contains the global scope for the whole vm.
 type Universe struct {
 	*context.Scope
 	Pkgs map[string]*context.Scope // a lookup-table for easy retrieval of packages by their "path"
@@ -33,7 +33,6 @@ func newUniverse() *Universe {
 
 	scope.Block = &context.Block{
 		Scope:  scope.Scope,
-		Offset: 0,
 		Global: true,
 		Defs:   make(map[string]context.Def),
 	}

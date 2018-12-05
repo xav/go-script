@@ -22,22 +22,20 @@ import (
 )
 
 // Block represents a definition context in which a name may not be defined more than once.
+//
+// The variables offset must be greater than the index of any variable  defined in any
+// parent of this block within the same Scope at the time this block is entered.
+//
+// Global blocks assume that the refs will be compiled in using defs[name].Init.
 type Block struct {
-	Outer *Block         // The block enclosing this one
-	Inner *Block         // The nested block currently being compiled, or nil.
-	Scope *Scope         // The Scope containing this block.
-	Defs  map[string]Def // The Variables, Constants, and Types defined in this block.
+	Outer  *Block         // The block enclosing this one
+	Inner  *Block         // The nested block currently being compiled, or nil.
+	Scope  *Scope         // The Scope containing this block.
+	Defs   map[string]Def // The Variables, Constants, and Types defined in this block.
+	Global bool           // If Global, do not allocate new vars and consts in the frame;
 
-	// The index of the first variable defined in this block.
-	// This must be greater than the index of any variable defined in any parent of this block
-	// within the same Scope at the time this block is entered.
-	Offset int
-	// The number of Variables defined in this block.
-	NumVars int
-
-	// If Global, do not allocate new vars and consts in the frame;
-	// assume that the refs will be compiled in using defs[name].Init.
-	Global bool
+	offset  int // The index of the first variable defined in this block.
+	numVars int // The number of variables defined in this block.
 }
 
 // EnterChild creates a new block with this one as parent, using the same scope.
@@ -50,7 +48,7 @@ func (b *Block) EnterChild() *Block {
 		Outer:  b,
 		Scope:  b.Scope,
 		Defs:   make(map[string]Def),
-		Offset: b.Offset + b.NumVars,
+		offset: b.offset + b.numVars,
 	}
 	b.Inner = sub
 	return sub
@@ -63,7 +61,7 @@ func (b *Block) EnterChildScope() *Scope {
 	}
 
 	sub := b.EnterChild()
-	sub.Offset = 0
+	sub.offset = 0
 	sub.Scope = &Scope{
 		Block:   sub,
 		MaxVars: 0,
@@ -118,7 +116,7 @@ func (b *Block) DefineVar(name string, pos token.Pos, t vm.Type) (*types.Variabl
 // DefineTemp allocates a anonymous slot in the current scope.
 func (b *Block) DefineTemp(t vm.Type) *types.Variable {
 	if b.Inner != nil && b.Inner.Scope == b.Scope {
-		logger.Panic().Msg("failed to exit child block before defining variable")
+		logger.Panic().Msg("failed to exit child block before defining temp")
 	}
 
 	return &types.Variable{
@@ -126,6 +124,20 @@ func (b *Block) DefineTemp(t vm.Type) *types.Variable {
 		Index:  b.defineSlot(true),
 		Type:   t,
 	}
+}
+
+// defineSlot allocates a var slot in the block's scope.
+func (b *Block) defineSlot(temp bool) int {
+	index := -1
+	if !b.Global || temp {
+		index = b.offset + b.numVars
+		b.numVars++
+		if index >= b.Scope.MaxVars {
+			b.Scope.MaxVars = index + 1
+		}
+	}
+
+	return index
 }
 
 // DefineConst creates a new constant definition and allocate it in the current scope,
@@ -140,35 +152,13 @@ func (b *Block) DefineConst(name string, pos token.Pos, t vm.Type) (*types.Const
 		return nil, prev
 	}
 
-	if b.Inner != nil && b.Inner.Scope == b.Scope {
-		logger.Panic().Msg("failed to exit child block before defining constant")
-	}
-
 	c := &types.Constant{
 		ConstPos: pos,
-		Index:    b.defineSlot(false),
 		Type:     t,
 	}
+
 	b.Defs[name] = c
 	return c, nil
-}
-
-// defineSlot allocates a slot in the block's scope.
-func (b *Block) defineSlot(temp bool) int {
-	if b.Inner != nil && b.Inner.Scope == b.Scope {
-		logger.Panic().Msg("failed to exit child block before defining symbol")
-	}
-
-	index := -1
-	if !b.Global || temp {
-		index = b.Offset + b.NumVars
-		b.NumVars++
-		if index >= b.Scope.MaxVars {
-			b.Scope.MaxVars = index + 1
-		}
-	}
-
-	return index
 }
 
 // DefineType creates a user defined type.
@@ -197,7 +187,7 @@ func (b *Block) DefineType(name string, pos token.Pos, t vm.Type) vm.Type {
 	return nt
 }
 
-//TODO(xav): channels
+//TODO(xav): DefineChan for channels
 
 // Undefine removes a symbole definition from this block.
 func (b *Block) Undefine(name string) {

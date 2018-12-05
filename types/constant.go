@@ -23,9 +23,6 @@ import (
 type Constant struct {
 	ConstPos token.Pos
 
-	// Index of this constant in the Frame
-	Index int
-
 	// Static type of this constant
 	Type vm.Type
 }
