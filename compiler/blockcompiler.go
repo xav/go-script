@@ -28,6 +28,7 @@ type BlockCompiler struct {
 	Label         *Label         // The label of this block, used for finding break and continue labels.
 }
 
+// CompileStmt compiles the specified statement within the block.
 func (bc *BlockCompiler) CompileStmt(stmt ast.Stmt) {
 	sc := &stmtCompiler{
 		BlockCompiler: bc,

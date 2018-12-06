@@ -14,13 +14,29 @@
 
 package types
 
-import "github.com/xav/go-script/vm"
+import (
+	"go/ast"
+
+	"github.com/xav/go-script/vm"
+)
+
+type FuncDecl struct {
+	Type     *FuncType
+	Name     *ast.Ident   // nil for function literals
+	InNames  []*ast.Ident // InNames will be one longer than Type.In if this function is variadic.
+	OutNames []*ast.Ident
+}
 
 type FuncType struct {
 	commonType
-	// TODO: Separate receiver Type for methods?
 	In       []vm.Type
 	Variadic bool
 	Out      []vm.Type
 	Builtin  string
 }
+
+// Compat(t Type, conv bool) bool
+// Lit() Type
+// IsIdeal() bool
+// Zero() Value
+// String() string

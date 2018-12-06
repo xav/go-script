@@ -140,16 +140,13 @@ func (b *Block) defineSlot(temp bool) int {
 	return index
 }
 
-// DefineConst creates a new constant definition and allocate it in the current scope,
-// or returns the existing definition if the symbol was already defined.
-func (b *Block) DefineConst(name string, pos token.Pos, t vm.Type) (*types.Constant, Def) {
-	if prev, ok := b.Defs[name]; ok {
-		if _, ok := prev.(*types.Constant); ok {
-			logger.Panic().
-				Str("symbol", name).
-				Msgf("symbol redeclaration with different primitives types (%+v -> Constant)", prev)
-		}
-		return nil, prev
+// DefineConst creates a new constant definition.
+func (b *Block) DefineConst(name string, pos token.Pos, t vm.Type) *types.Constant {
+	if _, ok := b.Defs[name]; ok {
+		logger.Error().
+			Str("symbol", name).
+			Msg("constant already declared in this block")
+		return nil
 	}
 
 	c := &types.Constant{
@@ -158,17 +155,15 @@ func (b *Block) DefineConst(name string, pos token.Pos, t vm.Type) (*types.Const
 	}
 
 	b.Defs[name] = c
-	return c, nil
+	return c
 }
 
 // DefineType creates a user defined type.
 func (b *Block) DefineType(name string, pos token.Pos, t vm.Type) vm.Type {
-	if prev, ok := b.Defs[name]; ok {
-		if _, ok := prev.(*types.NamedType); ok {
-			logger.Panic().
-				Str("symbol", name).
-				Msgf("symbol redeclaration with different primitives types (%+v -> NamedType)", prev)
-		}
+	if _, ok := b.Defs[name]; ok {
+		logger.Error().
+			Str("symbol", name).
+			Msg("type already declared in this block")
 		return nil
 	}
 
@@ -189,7 +184,7 @@ func (b *Block) DefineType(name string, pos token.Pos, t vm.Type) vm.Type {
 
 //TODO(xav): DefineChan for channels
 
-// Undefine removes a symbole definition from this block.
+// Undefine removes a symbol definition from this block.
 func (b *Block) Undefine(name string) {
 	delete(b.Defs, name)
 }

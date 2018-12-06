@@ -21,6 +21,9 @@ import (
 	"go/token"
 
 	"github.com/xav/go-script/context"
+	"github.com/xav/go-script/vm"
+	"github.com/xav/horus/warden/vm/types"
+	"github.com/xav/horus/warden/vm/value"
 )
 
 // Compiler captures information used throughout a package compilation.
@@ -32,9 +35,17 @@ type Compiler struct {
 }
 
 // Reports a compilation error att the specified position
-func (cc *Compiler) errorAt(pos token.Pos, format string, args ...interface{}) {
-	cc.Errors.Add(cc.FSet.Position(pos), fmt.Sprintf(format, args...))
+func (cc *Compiler) errorAt(pos token.Pos, format string, args ...interface{}) error {
+	// cc.Errors.Add(cc.FSet.Position(pos), fmt.Sprintf(format, args...))
+	err := &scanner.Error{
+		Pos: cc.FSet.Position(pos),
+		Msg: fmt.Sprintf(format, args...),
+	}
+	*cc.Errors = append(*cc.Errors, err)
+
 	cc.NumErrors++
+
+	return err
 }
 
 // NumError returns the total number of errors detected yet
@@ -43,5 +54,40 @@ func (cc *Compiler) NumError() int {
 }
 
 func (cc *Compiler) CompileExpr(b *context.Block, constant bool, expr ast.Expr) *Expr {
+	panic("NOT IMPLEMENTED")
+}
+
+func (cc *Compiler) compileType(b *context.Block, typ ast.Expr) vm.Type {
+	tc := &typeCompiler{
+		Compiler:  cc,
+		block:     b,
+		lateCheck: noLateCheck,
+	}
+	t := tc.compileType(typ, false)
+	if !tc.lateCheck() {
+		return nil
+	}
+
+	return t
+}
+
+func (cc *Compiler) compileFuncType(b *context.Block, typ *ast.FuncType) *types.FuncDecl {
+	panic("NOT IMPLEMENTED")
+}
+
+// compileAssign compiles an assignment operation without the full generality of an assignCompiler.
+// See assignCompiler for a description of the arguments.
+func (cc *Compiler) compileAssign(pos token.Pos, b *context.Block, lt vm.Type, rs []*Expr, errOp, errPosName string) func(vm.Value, *vm.Thread) {
+	panic("NOT IMPLEMENTED")
+}
+
+// Type check the RHS of an assignment, returning a new assignCompiler and indicating if the type check succeeded.
+// This always returns an assignCompiler with rmt set, but if type checking fails, slots in the MultiType may be nil.
+// If rs contains nil's, type checking will fail and these expressions given a nil type.
+func (cc *Compiler) checkAssign(pos token.Pos, rs []*Expr, errOp, errPosName string) (*AssignCompiler, bool) {
+	panic("NOT IMPLEMENTED")
+}
+
+func (cc *Compiler) compileFunc(b *context.Block, decl *types.FuncDecl, body *ast.BlockStmt) func(*vm.Thread) value.Func {
 	panic("NOT IMPLEMENTED")
 }

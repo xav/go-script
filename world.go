@@ -43,6 +43,7 @@ const (
 // Track the status of each package we visit (unvisited/visiting/done)
 var pkgStatus = make(map[string]packageStatus)
 
+// World contains the root context for the current program.
 type World struct {
 	scope *context.Scope
 	frame *vm.Frame
@@ -142,7 +143,8 @@ func (w *World) CompilePackage(fset *token.FileSet, files []*ast.File, pkgPath s
 	return packageCode, nil
 }
 
-// compileDeclList compiles a list of declaration nodes
+// compileDeclList compiles a list of declaration nodes by wrapping them into DeclStmt
+// and passing the statement list to compileStmtList.
 func (w *World) compileDeclList(fset *token.FileSet, decls []ast.Decl) (Runnable, error) {
 	stmts := make([]ast.Stmt, len(decls))
 	for i, d := range decls {
@@ -155,6 +157,7 @@ func (w *World) compileDeclList(fset *token.FileSet, decls []ast.Decl) (Runnable
 
 // compileStmtList compiles a list of statement nodes
 func (w *World) compileStmtList(fset *token.FileSet, stmts []ast.Stmt) (Runnable, error) {
+	// If the list only contains one statement, check if it's an expression to compile it directly
 	if len(stmts) == 1 {
 		if s, ok := stmts[0].(*ast.ExprStmt); ok {
 			return w.compileExpr(fset, s.X)
@@ -200,7 +203,7 @@ func (w *World) compileStmtList(fset *token.FileSet, stmts []ast.Stmt) (Runnable
 
 }
 
-// compileExpr compiles expression nodes
+// compileExpr compiles an expression node
 func (w *World) compileExpr(fset *token.FileSet, e ast.Expr) (Runnable, error) {
 	errs := new(scanner.ErrorList)
 	cc := &compiler.Compiler{
@@ -210,14 +213,14 @@ func (w *World) compileExpr(fset *token.FileSet, e ast.Expr) (Runnable, error) {
 		SilentErrors: 0,
 	}
 
-	ec := cc.CompileExpr(w.scope.Block, false, e)
-	if ec == nil {
+	x := cc.CompileExpr(w.scope.Block, false, e)
+	if x == nil {
 		errs.Sort()
 		return nil, errs.Err()
 	}
 
 	var eval func(vm.Value, *vm.Thread)
-	switch t := ec.ExprType.(type) {
+	switch t := x.ExprType.(type) {
 	// case *types.IdealIntType:
 	// 	// nothing
 	// case *types.FloatType:
@@ -226,14 +229,14 @@ func (w *World) compileExpr(fset *token.FileSet, e ast.Expr) (Runnable, error) {
 		if tm, ok := t.(*types.MultiType); ok && len(tm.Elems) == 0 {
 			return &stmtCode{
 				world: w,
-				code:  vm.Code{ec.Exec},
+				code:  vm.Code{x.Exec},
 			}, nil
 		}
-		// eval = compiler.GenAssign(ec.Type, ec)
+		// eval = compiler.GenAssign(x.Type, x)
 	}
 	return &ExprCode{
 		world: w,
-		expr:  ec,
+		expr:  x,
 		eval:  eval,
 	}, nil
 }
