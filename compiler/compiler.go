@@ -35,17 +35,9 @@ type Compiler struct {
 }
 
 // Reports a compilation error att the specified position
-func (cc *Compiler) errorAt(pos token.Pos, format string, args ...interface{}) error {
-	// cc.Errors.Add(cc.FSet.Position(pos), fmt.Sprintf(format, args...))
-	err := &scanner.Error{
-		Pos: cc.FSet.Position(pos),
-		Msg: fmt.Sprintf(format, args...),
-	}
-	*cc.Errors = append(*cc.Errors, err)
-
+func (cc *Compiler) errorAt(pos token.Pos, format string, args ...interface{}) {
+	cc.Errors.Add(cc.FSet.Position(pos), fmt.Sprintf(format, args...))
 	cc.NumErrors++
-
-	return err
 }
 
 // NumError returns the total number of errors detected yet

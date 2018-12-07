@@ -23,7 +23,6 @@ import (
 
 	gotypes "go/types"
 
-	"github.com/pkg/errors"
 	"github.com/xav/go-script/context"
 	"github.com/xav/go-script/types"
 	"github.com/xav/go-script/values"
@@ -42,8 +41,8 @@ type stmtCompiler struct {
 	stmtLabel      *Label    // This statement's label, or nil if it is not labeled.
 }
 
-func (sc *stmtCompiler) error(format string, args ...interface{}) error {
-	return sc.errorAt(sc.pos, format, args...)
+func (sc *stmtCompiler) error(format string, args ...interface{}) {
+	sc.errorAt(sc.pos, format, args...)
 }
 
 func (sc *stmtCompiler) compile(s ast.Stmt) {
@@ -236,11 +235,11 @@ func (sc *stmtCompiler) compileImportDecl(decl *ast.GenDecl) {
 	}
 }
 
-func (sc *stmtCompiler) compileTypeDecl(decl *ast.GenDecl) error {
+func (sc *stmtCompiler) compileTypeDecl(decl *ast.GenDecl) bool {
 	name := decl.Specs[0].(*ast.TypeSpec).Name.Name
 	_, level, dup := sc.Block.Lookup(name)
 	if dup != nil && level == 0 {
-		return sc.error("type %s redeclared in this block, previous declaration at %s", name, sc.FSet.Position(dup.Pos()))
+		sc.error("type %s redeclared in this block, previous declaration at %s", name, sc.FSet.Position(dup.Pos()))
 	}
 
 	ok := true
@@ -279,10 +278,9 @@ func (sc *stmtCompiler) compileTypeDecl(decl *ast.GenDecl) error {
 
 	if !ok {
 		sc.Block.Undefine(name)
-		return errors.Errorf("error compiling type %s.", name)
 	}
 
-	return nil
+	return ok
 }
 
 func (sc *stmtCompiler) compileVarDecl(decl *ast.GenDecl) error {
