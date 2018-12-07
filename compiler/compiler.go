@@ -22,8 +22,8 @@ import (
 
 	"github.com/xav/go-script/context"
 	"github.com/xav/go-script/types"
+	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
-	"github.com/xav/horus/warden/vm/value"
 )
 
 // Compiler captures information used throughout a package compilation.
@@ -72,7 +72,18 @@ func (cc *Compiler) compileType(b *context.Block, typ ast.Expr) vm.Type {
 }
 
 func (cc *Compiler) compileFuncType(b *context.Block, typ *ast.FuncType) *types.FuncDecl {
-	panic("NOT IMPLEMENTED")
+	tc := &typeCompiler{
+		Compiler:  cc,
+		block:     b,
+		lateCheck: noLateCheck,
+	}
+	fd := tc.compileFuncType(typ, false)
+	if fd != nil {
+		if !tc.lateCheck() {
+			fd = nil
+		}
+	}
+	return fd
 }
 
 // compileAssign compiles an assignment operation without the full generality of an assignCompiler.
@@ -88,6 +99,6 @@ func (cc *Compiler) checkAssign(pos token.Pos, rs []*Expr, errOp, errPosName str
 	panic("NOT IMPLEMENTED")
 }
 
-func (cc *Compiler) compileFunc(b *context.Block, decl *types.FuncDecl, body *ast.BlockStmt) func(*vm.Thread) value.Func {
+func (cc *Compiler) compileFunc(b *context.Block, decl *types.FuncDecl, body *ast.BlockStmt) func(*vm.Thread) values.Func {
 	panic("NOT IMPLEMENTED")
 }

@@ -16,6 +16,7 @@ package compiler
 
 import (
 	"go/ast"
+	"go/token"
 
 	"github.com/xav/go-script/context"
 	"github.com/xav/go-script/types"
@@ -88,11 +89,53 @@ func (tc *typeCompiler) compileChanType(x *ast.ChanType, allowRec bool) vm.Type 
 }
 
 func (tc *typeCompiler) compileFuncType(x *ast.FuncType, allowRec bool) *types.FuncDecl {
-	panic("NOT IMPLEMENTED")
+	// TODO: Variadic function types
+	in, inNames, _, inBad := tc.compileFields(x.Params, allowRec)
+	out, outNames, _, outBad := tc.compileFields(x.Results, allowRec)
+
+	if inBad || outBad {
+		return nil
+	}
+	return &types.FuncDecl{
+		Type:     types.NewFuncType(in, false, out),
+		Name:     nil,
+		InNames:  inNames,
+		OutNames: outNames,
+	}
+
 }
 
 func (tc *typeCompiler) compileIdent(x *ast.Ident, allowRec bool) vm.Type {
-	panic("NOT IMPLEMENTED")
+	_, _, def := tc.block.Lookup(x.Name)
+	if def == nil {
+		tc.errorAt(x.Pos(), "%s: undefined", x.Name)
+		return nil
+	}
+
+	switch def := def.(type) {
+	case *types.Constant:
+		tc.errorAt(x.Pos(), "constant %v used as type", x.Name)
+		return nil
+	case *types.Variable:
+		tc.errorAt(x.Pos(), "variable %v used as type", x.Name)
+		return nil
+
+	case *types.NamedType:
+		if !allowRec && def.Incomplete {
+			tc.errorAt(x.Pos(), "illegal recursive type")
+			return nil
+		}
+		if !def.Incomplete && def.Def == nil {
+			return nil // Placeholder type from an earlier error
+		}
+		return def
+
+	case vm.Type:
+		return def
+	}
+
+	logger.Panic().Msgf("symbol %s has unknown type %T", x.Name, def)
+	return nil
 }
 
 func (tc *typeCompiler) compileInterfaceType(x *ast.InterfaceType, allowRec bool) *types.InterfaceType {
@@ -109,4 +152,39 @@ func (tc *typeCompiler) compilePtrType(x *ast.StarExpr) vm.Type {
 
 func (tc *typeCompiler) compileStructType(x *ast.StructType, allowRec bool) vm.Type {
 	panic("NOT IMPLEMENTED")
+}
+
+func (tc *typeCompiler) compileFields(fields *ast.FieldList, allowRec bool) ([]vm.Type, []*ast.Ident, []token.Pos, bool) {
+	n := fields.NumFields()
+	ts := make([]vm.Type, n)
+	ns := make([]*ast.Ident, n)
+	ps := make([]token.Pos, n)
+	bad := false
+
+	if fields != nil {
+		i := 0
+		for _, f := range fields.List {
+			t := tc.compileType(f.Type, allowRec)
+			if t == nil {
+				bad = true
+			}
+
+			if f.Names == nil {
+				ns[i] = nil
+				ts[i] = t
+				ps[i] = f.Type.Pos()
+				i++
+				continue
+			}
+
+			for _, n := range f.Names {
+				ns[i] = n
+				ts[i] = t
+				ps[i] = n.Pos()
+				i++
+			}
+		}
+	}
+
+	return ts, ns, ps, bad
 }

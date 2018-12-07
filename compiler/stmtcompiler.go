@@ -26,6 +26,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/xav/go-script/context"
 	"github.com/xav/go-script/types"
+	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
 )
 
@@ -182,9 +183,8 @@ func (sc *stmtCompiler) compileFuncDecl(fd *ast.FuncDecl) {
 		return
 	}
 
-	// var zeroThread vm.Thread
-	// c.Value.(value.FuncValue).Set(nil, fn(&zeroThread))
-	panic("NOT IMPLEMENTED")
+	var zeroThread vm.Thread
+	c.Value.(values.FuncValue).Set(nil, fn(&zeroThread))
 }
 
 func (sc *stmtCompiler) compileGenDecl(gd *ast.GenDecl) {

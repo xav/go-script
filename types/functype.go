@@ -35,8 +35,38 @@ type FuncType struct {
 	Builtin  string
 }
 
+var funcTypes = newTypeArrayMap()
+var variadicFuncTypes = newTypeArrayMap()
+
 func (t *FuncType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
 func (t *FuncType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
 func (t *FuncType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
 func (t *FuncType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
 func (t *FuncType) String() string                   { panic("NOT IMPLEMENTED") }
+
+// Two function types are identical if they have the same number of parameters and result values,
+// and if corresponding parameter and result types are identical.
+// All "..." parameters have identical type.
+// Parameter and result names are not required to match.
+
+func NewFuncType(in []vm.Type, variadic bool, out []vm.Type) *FuncType {
+	inMap := funcTypes
+	if variadic {
+		inMap = variadicFuncTypes
+	}
+
+	outMapI := inMap.Get(in)
+	if outMapI == nil {
+		outMapI = inMap.Put(in, newTypeArrayMap())
+	}
+	outMap := outMapI.(typeArrayMap)
+
+	tI := outMap.Get(out)
+	if tI != nil {
+		return tI.(*FuncType)
+	}
+
+	t := &FuncType{commonType{}, in, variadic, out, ""}
+	outMap.Put(out, t)
+	return t
+}

@@ -16,15 +16,13 @@ package values
 
 import "github.com/xav/go-script/vm"
 
-type Map interface {
-	Len(*vm.Thread) int64
-	Elem(t *vm.Thread, key interface{}) vm.Value         // Retrieve an element from the map, returning nil if it does not exist.
-	SetElem(t *vm.Thread, key interface{}, val vm.Value) // Set an entry in the map. If val is nil, delete the entry.
-	Iter(func(key interface{}, val vm.Value) bool)       // TODO:  Perhaps there should be an iterator interface instead.
+type Func interface {
+	NewFrame() *vm.Frame
+	Call(*vm.Thread)
 }
 
-type MapValue interface {
+type FuncValue interface {
 	vm.Value
-	Get(*vm.Thread) Map
-	Set(*vm.Thread, Map)
+	Get(*vm.Thread) Func
+	Set(*vm.Thread, Func)
 }
