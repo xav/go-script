@@ -49,19 +49,17 @@ func (tc *typeCompiler) compileType(x ast.Expr, allowRec bool) vm.Type {
 		return nil
 
 	case *ast.FuncType:
-		// fd := tc.compileFuncType(x, allowRec)
-		// if fd == nil {
-		// 	return nil
-		// }
-		// return fd.Type
-		panic("NOT IMPLEMENTED")
+		fd := tc.compileFuncType(x, allowRec)
+		if fd == nil {
+			return nil
+		}
+		return fd.Type
 
 	case *ast.Ident:
 		return tc.compileIdent(x, allowRec)
 
 	case *ast.InterfaceType:
-		// return tc.compileInterfaceType(x, allowRec)
-		panic("NOT IMPLEMENTED")
+		return tc.compileInterfaceType(x, allowRec)
 
 	case *ast.MapType:
 		return tc.compileMapType(x)

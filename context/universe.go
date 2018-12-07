@@ -12,20 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package types
+package context
 
-import (
-	"go/token"
-
-	"github.com/xav/go-script/vm"
-)
-
-type Constant struct {
-	ConstPos token.Pos //
-	Type     vm.Type   // Static type of this constant
-	Value    vm.Value  //
+// UniverseScope contains the global scope for the whole vm.
+type UniverseScope struct {
+	*Scope
+	Pkgs map[string]*Scope // a lookup-table for easy retrieval of packages by their "path"
 }
 
-func (c *Constant) Pos() token.Pos {
-	return c.ConstPos
+// The universal scope
+func NewUniverse() *UniverseScope {
+	scope := &UniverseScope{
+		Scope: new(Scope),
+		Pkgs:  make(map[string]*Scope),
+	}
+
+	scope.Block = &Block{
+		Scope:  scope.Scope,
+		Global: true,
+		Defs:   make(map[string]Def),
+	}
+
+	return scope
 }

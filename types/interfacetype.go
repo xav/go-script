@@ -14,6 +14,8 @@
 
 package types
 
+import "github.com/xav/go-script/vm"
+
 // TODO: Interface values, types, and type compilation are implemented,
 // but none of the type checking or semantics of interfaces are.
 
@@ -21,3 +23,9 @@ type InterfaceType struct {
 	commonType
 	Methods map[string]*FuncType
 }
+
+func (t *InterfaceType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
+func (t *InterfaceType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
+func (t *InterfaceType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
+func (t *InterfaceType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
+func (t *InterfaceType) String() string                   { panic("NOT IMPLEMENTED") }

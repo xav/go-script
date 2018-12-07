@@ -52,7 +52,7 @@ type World struct {
 // NewWorld creates a new World by asking the universe for a child scope.
 func NewWorld() *World {
 	w := &World{
-		scope: universe.EnterChildScope(),
+		scope: context.Universe.EnterChildScope(),
 	}
 
 	// this block's vars allocate directly
@@ -91,7 +91,7 @@ func (w *World) CompilePackage(fset *token.FileSet, files []*ast.File, pkgPath s
 	// Compile the imports before taking care of the package code
 	for _, imp := range packageImports {
 		path, _ := strconv.Unquote(imp.Path.Value)
-		if _, ok := universe.Pkgs[path]; ok {
+		if _, ok := context.Universe.Pkgs[path]; ok {
 			// package was already compiled
 			continue
 		}
@@ -118,7 +118,7 @@ func (w *World) CompilePackage(fset *token.FileSet, files []*ast.File, pkgPath s
 	w.scope.Global = true
 	defer func() {
 		pkgStatus[pkgPath] = done
-		universe.Pkgs[pkgPath] = w.scope
+		context.Universe.Pkgs[pkgPath] = w.scope
 		w.scope.Exit()
 		if pkgPath != "main" {
 			w.scope = prevScope

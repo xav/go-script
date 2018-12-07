@@ -21,8 +21,8 @@ import (
 	"go/token"
 
 	"github.com/xav/go-script/context"
+	"github.com/xav/go-script/types"
 	"github.com/xav/go-script/vm"
-	"github.com/xav/horus/warden/vm/types"
 	"github.com/xav/horus/warden/vm/value"
 )
 

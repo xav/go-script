@@ -17,9 +17,14 @@ package compiler
 import (
 	"fmt"
 	"go/ast"
+	"go/importer"
 	"go/token"
+	"strconv"
+
+	gotypes "go/types"
 
 	"github.com/pkg/errors"
+	"github.com/xav/go-script/context"
 	"github.com/xav/go-script/types"
 	"github.com/xav/go-script/vm"
 )
@@ -135,51 +140,67 @@ func (sc *stmtCompiler) compileDeclStmt(stmt *ast.DeclStmt) {
 		return
 
 	case *ast.FuncDecl:
-		if !sc.Block.Global {
-			logger.Panic().Msg("FuncDecl at statement level")
-
-		}
+		sc.compileFuncDecl(decl)
 
 	case *ast.GenDecl:
-		if decl.Tok == token.IMPORT && !sc.Block.Global {
-			logger.Panic().Msg("import at statement level")
-
-		}
+		sc.compileGenDecl(decl)
 
 	default:
 		logger.Panic().
 			Str("type", fmt.Sprintf("%T", stmt.Decl)).
 			Msg("Unexpected Decl type")
 	}
-
-	sc.compileDecl(stmt.Decl)
 }
 
 // Declarations ////////////////////////////////////////////////////////////////
 
-func (sc *stmtCompiler) compileDecl(decl ast.Decl) {
-	switch d := decl.(type) {
-	case *ast.FuncDecl:
-		panic("NOT IMPLEMENTED")
-	case *ast.GenDecl:
-		switch d.Tok {
-		case token.CONST:
-			sc.compileConstDecl(d)
-		case token.IMPORT:
-			sc.compileImportDecl(d)
-		case token.TYPE:
-			sc.compileTypeDecl(d)
-		case token.VAR:
-			sc.compileVarDecl(d)
-		default:
-			logger.Panic().
-				Str("token", fmt.Sprintf("%c", d.Tok)).
-				Msg("Unexpected GenDecl token: %v")
+func (sc *stmtCompiler) compileFuncDecl(fd *ast.FuncDecl) {
+	if !sc.Block.Global {
+		logger.Panic().Msg("FuncDecl at statement level")
+	}
+
+	ftd := sc.compileFuncType(sc.Block, fd.Type)
+	if ftd == nil {
+		return
+	}
+
+	// Declare and initialize v before compiling func so that body can refer to itself.
+	c, prev := sc.Block.DefineConst(fd.Name.Name, sc.pos, ftd.Type, ftd.Type.Zero())
+	if prev != nil {
+		pos := prev.Pos()
+		if pos.IsValid() {
+			sc.errorAt(fd.Name.Pos(), "identifier %s redeclared in this block\n\tprevious declaration at %s", fd.Name.Name, sc.FSet.Position(pos))
+		} else {
+			sc.errorAt(fd.Name.Pos(), "identifier %s redeclared in this block", fd.Name.Name)
 		}
+	}
+
+	fn := sc.compileFunc(sc.Block, ftd, fd.Body)
+	if c == nil || fn == nil {
+		// when the compilation failed, remove the func identifier from the block definitions.
+		sc.Block.Undefine(fd.Name.Name)
+		return
+	}
+
+	// var zeroThread vm.Thread
+	// c.Value.(value.FuncValue).Set(nil, fn(&zeroThread))
+	panic("NOT IMPLEMENTED")
+}
+
+func (sc *stmtCompiler) compileGenDecl(gd *ast.GenDecl) {
+	switch gd.Tok {
+	case token.CONST:
+		sc.compileConstDecl(gd)
+	case token.IMPORT:
+		sc.compileImportDecl(gd)
+	case token.TYPE:
+		sc.compileTypeDecl(gd)
+	case token.VAR:
+		sc.compileVarDecl(gd)
 	default:
 		logger.Panic().
-			Str("type", fmt.Sprintf("%T", decl)).
-			Msg("Unexpected Decl type")
+			Str("token", fmt.Sprintf("%c", gd.Tok)).
+			Msg("Unexpected GenDecl token: %v")
 	}
 }
 
@@ -188,7 +209,31 @@ func (sc *stmtCompiler) compileConstDecl(decl *ast.GenDecl) {
 }
 
 func (sc *stmtCompiler) compileImportDecl(decl *ast.GenDecl) {
-	panic("NOT IMPLEMENTED")
+	if !sc.Block.Global {
+		logger.Panic().Msg("import at statement level")
+	}
+
+	for _, spec := range decl.Specs {
+		spec := spec.(*ast.ImportSpec)
+		path, _ := strconv.Unquote(spec.Path.Value)
+		id := path
+		if spec.Name != nil {
+			id = spec.Name.Name
+		}
+
+		pkg, err := srcImporter(defaultImporter, path)
+		if err != nil {
+			sc.errorAt(spec.Pos(), "could not import package [%s]: %v", path, err)
+			continue
+		}
+
+		if spec.Name != nil {
+			sc.definePkg(spec.Name, id, path)
+		} else {
+			id = pkg.Name()
+			sc.definePkg(spec.Path, id, path)
+		}
+	}
 }
 
 func (sc *stmtCompiler) compileTypeDecl(decl *ast.GenDecl) error {
@@ -224,12 +269,12 @@ func (sc *stmtCompiler) compileTypeDecl(decl *ast.GenDecl) error {
 		nt.(*types.NamedType).Complete(t)
 
 		// Perform late type checking with complete type
-		// if !tc.lateCheck() {
-		// 	ok = false
-		// 	if nt != nil {
-		// 		nt.(*types.NamedType).Def = nil // Make the type a placeholder
-		// 	}
-		// }
+		if !tc.lateCheck() {
+			ok = false
+			if nt != nil {
+				nt.(*types.NamedType).Def = nil // Make the type a placeholder
+			}
+		}
 	}
 
 	if !ok {
@@ -292,8 +337,28 @@ func (sc *stmtCompiler) defineVar(ident *ast.Ident, t vm.Type) *types.Variable {
 	return v
 }
 
+func (sc *stmtCompiler) definePkg(ident ast.Node, id, path string) *context.PkgIdent {
+	v, prev := sc.Block.DefinePackage(id, path, ident.Pos())
+	if prev != nil {
+		sc.errorAt(ident.Pos(), "%s redeclared as imported package name\n\tprevious declaration at %s", id, sc.FSet.Position(prev.Pos()))
+		return nil
+	}
+	return v
+	panic("NOT IMPLEMENTED")
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 func (sc *stmtCompiler) doAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.Token, declTypeExpr ast.Expr) {
 	panic("NOT IMPLEMENTED")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// default importer of packages
+var defaultImporter gotypes.Importer = importer.Default()
+
+// srcImporter implements the ast.Importer signature.
+func srcImporter(typesImporter gotypes.Importer, path string) (pkg *gotypes.Package, err error) {
+	return typesImporter.Import(path)
 }

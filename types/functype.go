@@ -35,8 +35,8 @@ type FuncType struct {
 	Builtin  string
 }
 
-// Compat(t Type, conv bool) bool
-// Lit() Type
-// IsIdeal() bool
-// Zero() Value
-// String() string
+func (t *FuncType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
+func (t *FuncType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
+func (t *FuncType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
+func (t *FuncType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
+func (t *FuncType) String() string                   { panic("NOT IMPLEMENTED") }

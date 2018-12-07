@@ -12,30 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package script
+package context
 
-import "github.com/xav/go-script/context"
+import "go/token"
 
-var universe = newUniverse()
-
-// Universe contains the global scope for the whole vm.
-type Universe struct {
-	*context.Scope
-	Pkgs map[string]*context.Scope // a lookup-table for easy retrieval of packages by their "path"
+type PkgIdent struct {
+	PkgPos token.Pos
+	path   string // the unique path to that package
+	scope  *Scope // the scope holding the package definition(s)
 }
 
-// The universal scope
-func newUniverse() *Universe {
-	scope := &Universe{
-		Scope: new(context.Scope),
-		Pkgs:  make(map[string]*context.Scope),
-	}
-
-	scope.Block = &context.Block{
-		Scope:  scope.Scope,
-		Global: true,
-		Defs:   make(map[string]context.Def),
-	}
-
-	return scope
+func (p *PkgIdent) Pos() token.Pos {
+	return p.PkgPos
 }

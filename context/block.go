@@ -40,9 +40,7 @@ type Block struct {
 
 // EnterChild creates a new block with this one as parent, using the same scope.
 func (b *Block) EnterChild() *Block {
-	if b.Inner != nil && b.Inner.Scope == b.Scope {
-		logger.Panic().Msg("failed to exit child block before entering another child")
-	}
+	b.checkChildExited()
 
 	sub := &Block{
 		Outer:  b,
@@ -56,9 +54,7 @@ func (b *Block) EnterChild() *Block {
 
 // EnterChildScope creates a new block with this one as parent, using a new scope.
 func (b *Block) EnterChildScope() *Scope {
-	if b.Inner != nil && b.Inner.Scope == b.Scope {
-		logger.Panic().Msg("failed to Exit child block before entering a child scope")
-	}
+	b.checkChildExited()
 
 	sub := b.EnterChild()
 	sub.offset = 0
@@ -79,9 +75,7 @@ func (b *Block) Exit() {
 		if b.Outer.Inner != b {
 			logger.Panic().Msg("already exited block")
 		}
-		if b.Inner != nil && b.Inner.Scope == b.Scope {
-			logger.Panic().Msg("exit of parent block without exit of child block")
-		}
+		b.checkChildExited()
 	}
 
 	b.Outer.Inner = nil
@@ -100,9 +94,7 @@ func (b *Block) DefineVar(name string, pos token.Pos, t vm.Type) (*types.Variabl
 		return nil, prev
 	}
 
-	if b.Inner != nil && b.Inner.Scope == b.Scope {
-		logger.Panic().Msg("failed to exit child block before defining variable")
-	}
+	b.checkChildExited()
 
 	v := &types.Variable{
 		VarPos: pos,
@@ -141,21 +133,19 @@ func (b *Block) defineSlot(temp bool) int {
 }
 
 // DefineConst creates a new constant definition.
-func (b *Block) DefineConst(name string, pos token.Pos, t vm.Type) *types.Constant {
-	if _, ok := b.Defs[name]; ok {
-		logger.Error().
-			Str("symbol", name).
-			Msg("constant already declared in this block")
-		return nil
+func (b *Block) DefineConst(name string, pos token.Pos, t vm.Type, v vm.Value) (*types.Constant, Def) {
+	if prev, ok := b.Defs[name]; ok {
+		return nil, prev
 	}
 
 	c := &types.Constant{
 		ConstPos: pos,
 		Type:     t,
+		Value:    v,
 	}
-
 	b.Defs[name] = c
-	return c
+
+	return nil, c
 }
 
 // DefineType creates a user defined type.
@@ -184,6 +174,22 @@ func (b *Block) DefineType(name string, pos token.Pos, t vm.Type) vm.Type {
 
 //TODO(xav): DefineChan for channels
 
+// DefinePackage defines a package import in the block.
+func (b *Block) DefinePackage(id, path string, pos token.Pos) (*PkgIdent, Def) {
+	if prev, ok := b.Defs[id]; ok {
+		return nil, prev
+	}
+
+	p := &PkgIdent{
+		PkgPos: pos,
+		path:   path,
+		scope:  Universe.Pkgs[path],
+	}
+	b.Defs[id] = p
+
+	return p, nil
+}
+
 // Undefine removes a symbol definition from this block.
 func (b *Block) Undefine(name string) {
 	delete(b.Defs, name)
@@ -203,4 +209,11 @@ func (b *Block) Lookup(name string) (bl *Block, level int, def Def) {
 		b = b.Outer
 	}
 	return nil, 0, nil
+}
+
+// Check that the child block is exited; otherwise, panic.
+func (b *Block) checkChildExited() {
+	if b.Inner != nil && b.Inner.Scope == b.Scope {
+		logger.Panic().Msg("failed to exit child block")
+	}
 }

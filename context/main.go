@@ -19,3 +19,5 @@ import (
 )
 
 var logger = log.With().Str("component", "script.context").Logger()
+
+var Universe = NewUniverse()
