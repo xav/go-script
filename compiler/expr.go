@@ -48,3 +48,55 @@ type Expr struct {
 	// A short string describing this expression for error messages.
 	desc string
 }
+
+func (x *Expr) resolveIdeal(t vm.Type) *Expr { panic("NOT IMPLEMENTED") }
+
+////////////////////////////////////////////////////////////////////////////////
+// "As" functions retrieve evaluator functions from an expr, panicking if
+// the requested evaluator has the wrong type.
+
+// asValue returns a closure around a Value, according to the type of the underlying expression
+func (x *Expr) asValue() func(t *vm.Thread) vm.Value      { panic("NOT IMPLEMENTED") }
+func (x *Expr) asInterface() func(*vm.Thread) interface{} { panic("NOT IMPLEMENTED") }
+
+func (x *Expr) asPackage() func(*vm.Thread) values.PackageValue {
+	return x.eval.(func(*vm.Thread) values.PackageValue)
+}
+func (x *Expr) asBool() func(*vm.Thread) bool {
+	return x.eval.(func(*vm.Thread) bool)
+}
+func (x *Expr) asUint() func(*vm.Thread) uint64 {
+	return x.eval.(func(*vm.Thread) uint64)
+}
+func (x *Expr) asInt() func(*vm.Thread) int64 {
+	return x.eval.(func(*vm.Thread) int64)
+}
+func (x *Expr) asFloat() func(*vm.Thread) float64 {
+	return x.eval.(func(*vm.Thread) float64)
+}
+func (x *Expr) asString() func(*vm.Thread) string {
+	return x.eval.(func(*vm.Thread) string)
+}
+func (x *Expr) asArray() func(*vm.Thread) values.ArrayValue {
+	return x.eval.(func(*vm.Thread) values.ArrayValue)
+}
+func (x *Expr) asStruct() func(*vm.Thread) values.StructValue {
+	return x.eval.(func(*vm.Thread) values.StructValue)
+}
+func (x *Expr) asPtr() func(*vm.Thread) vm.Value {
+	return x.eval.(func(*vm.Thread) vm.Value)
+}
+func (x *Expr) asFunc() func(*vm.Thread) values.Func {
+	return x.eval.(func(*vm.Thread) values.Func)
+}
+func (x *Expr) asSlice() func(*vm.Thread) values.Slice {
+	return x.eval.(func(*vm.Thread) values.Slice)
+}
+func (x *Expr) asMap() func(*vm.Thread) values.Map {
+	return x.eval.(func(*vm.Thread) values.Map)
+}
+func (x *Expr) asMulti() func(*vm.Thread) []vm.Value {
+	return x.eval.(func(*vm.Thread) []vm.Value)
+}
+
+////////////////////////////////////////////////////////////////////////////////
