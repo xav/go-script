@@ -37,3 +37,15 @@ func (bc *BlockCompiler) CompileStmt(stmt ast.Stmt) {
 	}
 	sc.compile(stmt)
 }
+
+func (bc *BlockCompiler) enterChild() *BlockCompiler {
+	block := bc.Block.EnterChild()
+	return &BlockCompiler{
+		FuncCompiler: bc.FuncCompiler,
+		Block:        block,
+		Parent:       bc,
+	}
+}
+func (bc *BlockCompiler) exit() {
+	bc.Block.Exit()
+}

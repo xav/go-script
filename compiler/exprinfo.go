@@ -30,6 +30,23 @@ type ExprInfo struct {
 	pos token.Pos
 }
 
+func (xi *ExprInfo) newExpr(t vm.Type, desc string) *Expr { panic("NOT IMPLEMENTED") }
+func (xi *ExprInfo) exprFromType(t vm.Type) *Expr         { panic("NOT IMPLEMENTED") }
+
+func (xi *ExprInfo) error(format string, args ...interface{}) {
+	xi.errorAt(xi.pos, format, args...)
+}
+
+func (xi *ExprInfo) errorOpType(op token.Token, vt vm.Type) {
+	xi.error("illegal operand type for '%v' operator\n\t%v", op, vt)
+}
+
+func (xi *ExprInfo) errorOpTypes(op token.Token, lt vm.Type, rt vm.Type) {
+	xi.error("illegal operand types for '%v' operator\n\t%v\n\t%v", op, lt, rt)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 func (xi *ExprInfo) compileIntLit(lit string) *Expr    { panic("NOT IMPLEMENTED") }
 func (xi *ExprInfo) compileFloatLit(lit string) *Expr  { panic("NOT IMPLEMENTED") }
 func (xi *ExprInfo) compileCharLit(lit string) *Expr   { panic("NOT IMPLEMENTED") }
@@ -82,7 +99,3 @@ func (xi *ExprInfo) compileStarExpr(v *Expr) *Expr {
 func (xi *ExprInfo) compileUnaryExpr(op token.Token, v *Expr) *Expr {
 	panic("NOT IMPLEMENTED")
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-func (xi *ExprInfo) exprFromType(t vm.Type) *Expr { panic("NOT IMPLEMENTED") }

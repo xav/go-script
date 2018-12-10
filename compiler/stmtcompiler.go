@@ -23,6 +23,7 @@ import (
 
 	gotypes "go/types"
 
+	"github.com/xav/go-script/builtins"
 	"github.com/xav/go-script/context"
 	"github.com/xav/go-script/types"
 	"github.com/xav/go-script/values"
@@ -348,7 +349,227 @@ func (sc *stmtCompiler) definePkg(ident ast.Node, id, path string) *context.PkgI
 ////////////////////////////////////////////////////////////////////////////////
 
 func (sc *stmtCompiler) doAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.Token, declTypeExpr ast.Expr) {
-	panic("NOT IMPLEMENTED")
+	nerr := sc.NumError()
+
+	//////////////////////////////////////
+	// Compile right side first so we have the types when compiling the left side and
+	// so we don't see definitions made on the left side.
+
+	rs := make([]*Expr, len(rhs))
+	for i, re := range rhs {
+		rs[i] = sc.CompileExpr(sc.Block, false, re)
+	}
+
+	// Check if compileExpr failed on any expr
+	for _, r := range rs {
+		if r == nil {
+			return
+		}
+	}
+
+	errOp := "assignment"
+	if tok == token.DEFINE || tok == token.VAR {
+		errOp = "declaration"
+	}
+
+	ac, ok := sc.checkAssign(sc.pos, rs, errOp, "value")
+	ac.allowMapForms(len(lhs))
+
+	// If this is a definition and the LHS is larger than the RHS, we won't be able to produce
+	// the usual error message because we can't begin to infer the types of the LHS.
+	if (tok == token.DEFINE || tok == token.VAR) && len(lhs) > len(ac.rmt.Elems) {
+		sc.error("not enough values for definition")
+	}
+
+	// Compile left type if there is one
+	var declType vm.Type
+	if declTypeExpr != nil {
+		declType = sc.compileType(sc.Block, declTypeExpr)
+	}
+
+	//////////////////////////////////////
+	// Compile left side
+
+	ls := make([]*Expr, len(lhs))
+	nDefs := 0
+	for i, le := range lhs {
+		// If this is a definition, get the identifier and its type
+		var ident *ast.Ident
+		var lt vm.Type
+		switch tok {
+		case token.DEFINE:
+			// Check that it's an identifier
+			ident, ok = le.(*ast.Ident)
+			if !ok {
+				sc.errorAt(le.Pos(), "left side of := must be a name")
+				nDefs++ // Suppress new definitions errors
+				continue
+			}
+
+			// Is this simply an assignment?
+			if _, ok := sc.Block.Defs[ident.Name]; ok {
+				ident = nil
+				break
+			}
+			nDefs++
+
+		case token.VAR:
+			ident = le.(*ast.Ident)
+		}
+
+		// If it's a definition, get or infer its type.
+		if ident != nil {
+			// Compute the identifier's type from the RHS type.
+			// We use the computed MultiType so we don't have to worry about unpacking.
+			switch {
+			case declTypeExpr != nil:
+				// We have a declaration type, use it.
+				// If declType is nil, we gave an error when we compiled it.
+				lt = declType
+
+			case i >= len(ac.rmt.Elems):
+				lt = nil // We already gave the "not enough" error above.
+			case ac.rmt.Elems[i] == nil:
+				lt = nil // We already gave the error when we compiled the RHS.
+
+			case ac.rmt.Elems[i].IsIdeal():
+				// If the type is absent and the corresponding expression is a constant expression of
+				// ideal integer or ideal float type, the type of the declared variable is int or float respectively.
+				switch {
+				case ac.rmt.Elems[i].IsInteger():
+					lt = builtins.IntType
+				case ac.rmt.Elems[i].IsFloat():
+					lt = builtins.Float64Type
+				default:
+					logger.Panic().
+						Str("type", fmt.Sprintf("%v", rs[i].ExprType)).
+						Msg("unexpected ideal type")
+				}
+
+			default:
+				lt = ac.rmt.Elems[i]
+			}
+
+			// define the identifier
+			if sc.defineVar(ident, lt) == nil {
+				continue
+			}
+		}
+
+		// Compile LHS
+		ls[i] = sc.CompileExpr(sc.Block, false, le)
+		if ls[i] == nil {
+			continue
+		}
+
+		if ls[i].evalMapValue != nil {
+			// Map indexes are not generally addressable, but they are assignable.
+			sub := ls[i]
+			ls[i] = ls[i].newExpr(sub.ExprType, sub.desc)
+			ls[i].evalMapValue = sub.evalMapValue
+			mvf := sub.evalMapValue
+			et := sub.ExprType
+			ls[i].evalAddr = func(t *vm.Thread) vm.Value {
+				m, k := mvf(t)
+				e := m.Elem(t, k)
+				if e == nil {
+					e = et.Zero()
+					m.SetElem(t, k, e)
+				}
+				return e
+			}
+		} else if ls[i].evalAddr == nil {
+			ls[i].error("cannot assign to %s", ls[i].desc)
+			continue
+		}
+	}
+
+	// A short variable declaration may redeclare variables provided they were originally
+	// declared in the same block with the same type, and at least one of the variables is new.
+	if tok == token.DEFINE && nDefs == 0 {
+		sc.error("at least one new variable must be declared")
+		return
+	}
+
+	// If there have been errors, our arrays are full of nil's so get out of here now.
+	if nerr != sc.NumError() {
+		return
+	}
+
+	// Check for 'a[x] = r, ok'
+	if len(ls) == 1 && len(rs) == 2 && ls[0].evalMapValue != nil {
+		sc.error("a[x] = r, ok form not implemented")
+		return
+	}
+
+	//////////////////////////////////////
+	// Create assigner
+
+	var lt vm.Type
+	n := len(lhs)
+	if n == 1 {
+		lt = ls[0].ExprType
+	} else {
+		lts := make([]vm.Type, len(ls))
+		for i, l := range ls {
+			if l != nil {
+				lts[i] = l.ExprType
+			}
+		}
+		lt = types.NewMultiType(lts)
+	}
+
+	bc := sc.enterChild()
+	defer bc.exit()
+	assign := ac.compile(bc.Block, lt)
+	if assign == nil {
+		return
+	}
+
+	//////////////////////////////////////
+	// Compile
+
+	switch {
+	case n == 1:
+		// Don't need temporaries and can avoid []Value.
+		lf := ls[0].evalAddr
+		sc.Push(func(t *vm.Thread) {
+			assign(lf(t), t)
+		})
+
+	case tok == token.VAR || (tok == token.DEFINE && nDefs == n):
+		// Don't need temporaries
+		lfs := make([]func(*vm.Thread) vm.Value, n)
+		for i, l := range ls {
+			lfs[i] = l.evalAddr
+		}
+
+		sc.Push(func(t *vm.Thread) {
+			dest := make([]vm.Value, n)
+			for i, lf := range lfs {
+				dest[i] = lf(t)
+			}
+			assign(values.MultiV(dest), t)
+		})
+
+	default:
+		// Need temporaries
+		lmt := lt.(*types.MultiType)
+		lfs := make([]func(*vm.Thread) vm.Value, n)
+		for i, l := range ls {
+			lfs[i] = l.evalAddr
+		}
+
+		sc.Push(func(t *vm.Thread) {
+			temp := lmt.Zero().(values.MultiV)
+			assign(temp, t)
+			// Copy to destination
+			for i := 0; i < n; i++ {
+				// TODO: Need to evaluate LHS before RHS
+				lfs[i](t).Assign(t, temp[i])
+			}
+		})
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////////

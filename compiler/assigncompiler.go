@@ -17,7 +17,10 @@ package compiler
 import (
 	"go/token"
 
+	"github.com/xav/go-script/builtins"
+	"github.com/xav/go-script/context"
 	"github.com/xav/go-script/types"
+	"github.com/xav/go-script/vm"
 )
 
 // AssignCompiler compiles assignment operations.
@@ -43,4 +46,22 @@ type AssignCompiler struct {
 	isMapUnpack bool             // Whether this is a "r, ok = a[x]" assignment.
 	errOp       string           // The operation name to use in error messages, such as "assignment" or "function call".
 	errPosName  string           // The name to use for positions in error messages, such as "argument".
+}
+
+func (ac *AssignCompiler) compile(b *context.Block, lt vm.Type) func(vm.Value, *vm.Thread) {
+	panic("NOT IMPLEMENTED")
+}
+
+func (ac *AssignCompiler) allowMapForms(nls int) {
+	ac.allowMap = true
+
+	// Update unpacking info if this is 'r, ok = a[x]'
+	if nls == 2 && len(ac.rs) == 1 && ac.rs[0] != nil && ac.rs[0].evalMapValue != nil {
+		ac.isUnpack = true
+		ac.isMapUnpack = true
+		ac.rmt = types.NewMultiType([]vm.Type{
+			ac.rs[0].ExprType,
+			builtins.BoolType,
+		})
+	}
 }
