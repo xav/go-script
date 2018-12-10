@@ -18,8 +18,6 @@ import "github.com/xav/go-script/vm"
 
 type MultiV []vm.Value
 
-// Value interface /////////////////////////////////////////////////////////////
-
 func (v MultiV) String() string {
 	res := "("
 	for i, v := range v {

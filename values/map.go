@@ -28,3 +28,11 @@ type MapValue interface {
 	Get(*vm.Thread) Map
 	Set(*vm.Thread, Map)
 }
+
+// map /////////////////////////////////////////////////////////////////////////
+type MapV struct {
+	Target Map
+}
+
+func (v *MapV) String() string                  { panic("NOT IMPLEMENTED") }
+func (v *MapV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }

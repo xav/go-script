@@ -16,22 +16,17 @@ package values
 
 import "github.com/xav/go-script/vm"
 
-type Func interface {
-	NewFrame() *vm.Frame
-	Call(*vm.Thread)
-}
-
-type FuncValue interface {
+type StructValue interface {
 	vm.Value
-	Get(*vm.Thread) Func
-	Set(*vm.Thread, Func)
+	// TODO: Get() is here for uniformity, but is completely useless.
+	// If a lot of other types have similarly useless Get methods, just special-case these uses.
+	Get(*vm.Thread) StructValue
+	Field(*vm.Thread, int) vm.Value
 }
 
-// func ///////////////////////////////////////////////////////////////////////
+// struct //////////////////////////////////////////////////////////////////////
 
-type FuncV struct {
-	Target Func
-}
+type StructV []vm.Value
 
-func (v *FuncV) String() string                  { panic("NOT IMPLEMENTED") }
-func (v *FuncV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
+func (v *StructV) String() string                  { panic("NOT IMPLEMENTED") }
+func (v *StructV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }

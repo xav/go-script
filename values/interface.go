@@ -16,22 +16,22 @@ package values
 
 import "github.com/xav/go-script/vm"
 
-type Func interface {
-	NewFrame() *vm.Frame
-	Call(*vm.Thread)
+type Interface struct {
+	Type  vm.Type
+	Value vm.Value
 }
 
-type FuncValue interface {
+type InterfaceValue interface {
 	vm.Value
-	Get(*vm.Thread) Func
-	Set(*vm.Thread, Func)
+	Get(*vm.Thread) Interface
+	Set(*vm.Thread, Interface)
 }
 
-// func ///////////////////////////////////////////////////////////////////////
+// interface ///////////////////////////////////////////////////////////////////
 
-type FuncV struct {
-	Target Func
+type InterfaceV struct {
+	Interface
 }
 
-func (v *FuncV) String() string                  { panic("NOT IMPLEMENTED") }
-func (v *FuncV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
+func (v *InterfaceV) String() string                  { panic("NOT IMPLEMENTED") }
+func (v *InterfaceV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
