@@ -15,12 +15,20 @@
 package compiler
 
 import (
+	"fmt"
 	"go/token"
+	"math/big"
+	"strconv"
 
 	"github.com/xav/go-script/context"
 	"github.com/xav/go-script/types"
 	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
+)
+
+var (
+	unaryOpDescs = make(map[token.Token]string)
+	binOpDescs   = make(map[token.Token]string)
 )
 
 // ExprInfo stores information needed to compile any expression node.
@@ -47,16 +55,72 @@ func (xi *ExprInfo) errorOpTypes(op token.Token, lt vm.Type, rt vm.Type) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func (xi *ExprInfo) compileIntLit(lit string) *Expr    { panic("NOT IMPLEMENTED") }
-func (xi *ExprInfo) compileFloatLit(lit string) *Expr  { panic("NOT IMPLEMENTED") }
-func (xi *ExprInfo) compileCharLit(lit string) *Expr   { panic("NOT IMPLEMENTED") }
-func (xi *ExprInfo) compileStringLit(lit string) *Expr { panic("NOT IMPLEMENTED") }
+func (xi *ExprInfo) compileIntLit(lit string) *Expr {
+	i, _ := new(big.Int).SetString(lit, 0)
+	return xi.compileIdealInt(i, "integer literal")
+}
+
+func (xi *ExprInfo) compileFloatLit(lit string) *Expr {
+	f, ok := new(big.Rat).SetString(lit)
+	if !ok {
+		logger.Panic().
+			Str("pos", fmt.Sprintf("%v", xi.pos)).
+			Msgf("malformed float literal %s passed parser", lit)
+	}
+
+	expr := xi.newExpr(IdealFloatType, "float literal")
+	expr.eval = func() *big.Rat { return f }
+	return expr
+}
+
+func (xi *ExprInfo) compileCharLit(lit string) *Expr {
+	if lit[0] != '\'' {
+		xi.SilentErrors++ // Caught by parser
+		return nil
+	}
+
+	v, _, tail, err := strconv.UnquoteChar(lit[1:], '\'')
+	if err != nil || tail != "'" {
+		xi.SilentErrors++ // Caught by parser
+		return nil
+	}
+
+	return xi.compileIdealInt(big.NewInt(int64(v)), "character literal")
+}
+
+func (xi *ExprInfo) compileStringLit(lit string) *Expr {
+	s, err := strconv.Unquote(lit)
+	if err != nil {
+		xi.error("illegal string literal, %v", err)
+		return nil
+	}
+	return xi.compileString(s)
+}
+
+func (xi *ExprInfo) compileIdealInt(i *big.Int, desc string) *Expr {
+	expr := xi.newExpr(IdealIntType, desc)
+	expr.eval = func() *big.Int { return i }
+	return expr
+}
 
 func (xi *ExprInfo) compileCompositeLit(c *Expr, ikeys []interface{}, vals []*Expr) *Expr {
 	panic("NOT IMPLEMENTED")
 }
 
 func (xi *ExprInfo) compileFuncLit(decl *types.FuncDecl, fn func(*vm.Thread) values.Func) *Expr {
+	panic("NOT IMPLEMENTED")
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+func (xi *ExprInfo) compileGlobalVariable(v *types.Variable) *Expr      { panic("NOT IMPLEMENTED") }
+func (xi *ExprInfo) compileVariable(level int, v *types.Variable) *Expr { panic("NOT IMPLEMENTED") }
+func (xi *ExprInfo) compileString(s string) *Expr                       { panic("NOT IMPLEMENTED") }
+func (xi *ExprInfo) compileStringList(list []*Expr) *Expr               { panic("NOT IMPLEMENTED") }
+
+////////////////////////////////////////////////////////////////////////////////
+
+func (xi *ExprInfo) compilePackageImport(name string, pkg *context.PkgIdent, constant, callCtx bool) *Expr {
 	panic("NOT IMPLEMENTED")
 }
 

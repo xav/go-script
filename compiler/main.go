@@ -16,6 +16,13 @@ package compiler
 
 import (
 	"github.com/rs/zerolog/log"
+	"github.com/xav/go-script/types"
+	"github.com/xav/go-script/vm"
 )
 
 var logger = log.With().Str("component", "script.compiler").Logger()
+
+var (
+	IdealIntType   vm.Type = &types.IdealIntType{}
+	IdealFloatType vm.Type = &types.IdealFloatType{}
+)
