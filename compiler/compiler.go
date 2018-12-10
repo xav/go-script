@@ -95,7 +95,7 @@ func (cc *Compiler) compileAssign(pos token.Pos, b *context.Block, lt vm.Type, r
 // Type check the RHS of an assignment, returning a new assignCompiler and indicating if the type check succeeded.
 // This always returns an assignCompiler with rmt set, but if type checking fails, slots in the MultiType may be nil.
 // If rs contains nil's, type checking will fail and these expressions given a nil type.
-func (cc *Compiler) checkAssign(pos token.Pos, rs []*Expr, errOp, errPosName string) (*AssignCompiler, bool) {
+func (cc *Compiler) checkAssign(pos token.Pos, rs []*Expr, errOp, errPosName string) (*assignCompiler, bool) {
 	panic("NOT IMPLEMENTED")
 }
 

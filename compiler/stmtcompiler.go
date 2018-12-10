@@ -343,7 +343,6 @@ func (sc *stmtCompiler) definePkg(ident ast.Node, id, path string) *context.PkgI
 		return nil
 	}
 	return v
-	panic("NOT IMPLEMENTED")
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -575,7 +574,7 @@ func (sc *stmtCompiler) doAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.Token
 ////////////////////////////////////////////////////////////////////////////////
 
 // default importer of packages
-var defaultImporter gotypes.Importer = importer.Default()
+var defaultImporter = importer.Default()
 
 // srcImporter implements the ast.Importer signature.
 func srcImporter(typesImporter gotypes.Importer, path string) (pkg *gotypes.Package, err error) {
