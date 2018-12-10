@@ -15,6 +15,7 @@
 package compiler
 
 import (
+	"fmt"
 	"go/ast"
 	"go/token"
 
@@ -134,7 +135,10 @@ func (tc *typeCompiler) compileIdent(x *ast.Ident, allowRec bool) vm.Type {
 		return def
 	}
 
-	logger.Panic().Msgf("symbol %s has unknown type %T", x.Name, def)
+	logger.Panic().
+		Str("symbol", x.Name).
+		Str("type", fmt.Sprintf("%T", def)).
+		Msg("symbol has unknown type")
 	return nil
 }
 

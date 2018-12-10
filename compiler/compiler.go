@@ -46,7 +46,15 @@ func (cc *Compiler) NumError() int {
 }
 
 func (cc *Compiler) CompileExpr(b *context.Block, constant bool, expr ast.Expr) *Expr {
-	panic("NOT IMPLEMENTED")
+	ec := &ExprCompiler{cc, b, constant}
+	nerr := cc.NumError()
+
+	e := ec.compile(expr, false)
+	if e == nil && nerr == cc.NumError() {
+		logger.Panic().Msg("expression compilation failed without reporting errors")
+	}
+
+	return e
 }
 
 func (cc *Compiler) compileType(b *context.Block, typ ast.Expr) vm.Type {
