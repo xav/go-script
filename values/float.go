@@ -14,10 +14,54 @@
 
 package values
 
-import "github.com/xav/go-script/vm"
+import (
+	"fmt"
+
+	"github.com/xav/go-script/vm"
+)
 
 type FloatValue interface {
 	vm.Value
 	Get(*vm.Thread) float64
 	Set(*vm.Thread, float64)
+}
+
+// float32 /////////////////////////////////////////////////////////////////////
+
+type Float32V float32
+
+func (v *Float32V) String() string {
+	return fmt.Sprint(*v)
+}
+
+func (v *Float32V) Assign(t *vm.Thread, o vm.Value) {
+	*v = Float32V(o.(FloatValue).Get(t))
+}
+
+func (v *Float32V) Get(*vm.Thread) float64 {
+	return float64(*v)
+}
+
+func (v *Float32V) Set(t *vm.Thread, x float64) {
+	*v = Float32V(x)
+}
+
+// float64 /////////////////////////////////////////////////////////////////////
+
+type Float64V float64
+
+func (v *Float64V) String() string {
+	return fmt.Sprint(*v)
+}
+
+func (v *Float64V) Assign(t *vm.Thread, o vm.Value) {
+	*v = Float64V(o.(FloatValue).Get(t))
+}
+
+func (v *Float64V) Get(*vm.Thread) float64 {
+	return float64(*v)
+}
+
+func (v *Float64V) Set(t *vm.Thread, x float64) {
+	*v = Float64V(x)
 }
