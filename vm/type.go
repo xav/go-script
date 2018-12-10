@@ -26,6 +26,15 @@ type Type interface {
 	// Otherwise, this is an identity operation.
 	Lit() Type
 
+	// IsBoolean returns true if this is a boolean type.
+	IsBoolean() bool
+
+	// IsInteger returns true if this is an integer type.
+	IsInteger() bool
+
+	// IsFloat returns true if this is a floating type.
+	IsFloat() bool
+
 	// IsIdeal returns true if this represents an ideal value.
 	IsIdeal() bool
 

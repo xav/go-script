@@ -37,6 +37,8 @@ func (t *NamedType) Pos() token.Pos {
 	return t.NTPos
 }
 
+// Type interface //////////////////////////////////////////////////////////////
+
 // Compat returns whether this type is compatible with another type.
 func (t *NamedType) Compat(o vm.Type, conv bool) bool {
 	if t2, ok := o.(*NamedType); ok {
@@ -58,6 +60,17 @@ func (t *NamedType) Lit() vm.Type {
 	return t.Def.Lit()
 }
 
+func (t *NamedType) IsBoolean() bool {
+	return t.Def.IsBoolean()
+}
+
+func (t *NamedType) IsInteger() bool {
+	return t.Def.IsInteger()
+}
+func (t *NamedType) IsFloat() bool {
+	return t.Def.IsFloat()
+}
+
 func (t *NamedType) IsIdeal() bool {
 	return false
 }
@@ -69,6 +82,8 @@ func (t *NamedType) String() string {
 func (t *NamedType) Zero() vm.Value {
 	return t.Def.Zero()
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Complete marks this named type as completed
 func (t *NamedType) Complete(def vm.Type) {

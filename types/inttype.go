@@ -22,13 +22,18 @@ type IntType struct {
 	Name string
 }
 
-func (t *IntType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
-func (t *IntType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
-func (t *IntType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
-func (t *IntType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
-func (t *IntType) String() string                   { panic("NOT IMPLEMENTED") }
-
 func MakeIntType(bits uint, name string) *IntType {
 	t := IntType{commonType{}, bits, name}
 	return &t
 }
+
+// Type interface //////////////////////////////////////////////////////////////
+
+func (t *IntType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
+func (t *IntType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
+func (t *IntType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
+func (t *IntType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
+func (t *IntType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
+func (t *IntType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
+func (t *IntType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
+func (t *IntType) String() string                   { panic("NOT IMPLEMENTED") }

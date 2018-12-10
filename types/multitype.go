@@ -18,12 +18,31 @@ import (
 	"github.com/xav/go-script/vm"
 )
 
+var multiTypes = newTypeArrayMap()
+
+var EmptyType vm.Type = NewMultiType([]vm.Type{})
+
 // MultiType is a special type used for multi-valued expressions, akin to a tuple type.
 // It's not generally accessible within the language.
 type MultiType struct {
 	commonType
 	Elems []vm.Type
 }
+
+func NewMultiType(elems []vm.Type) *MultiType {
+	if t := multiTypes.Get(elems); t != nil {
+		return t.(*MultiType)
+	}
+
+	t := &MultiType{
+		commonType: commonType{},
+		Elems:      elems,
+	}
+	multiTypes.Put(elems, t)
+	return t
+}
+
+// Type interface //////////////////////////////////////////////////////////////
 
 func (t *MultiType) Compat(o vm.Type, conv bool) bool {
 	t2, ok := o.Lit().(*MultiType)

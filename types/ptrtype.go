@@ -25,12 +25,6 @@ type PtrType struct {
 
 // Two pointer types are identical if they have identical base types.
 
-func (t *PtrType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
-func (t *PtrType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
-func (t *PtrType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
-func (t *PtrType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
-func (t *PtrType) String() string                   { panic("NOT IMPLEMENTED") }
-
 func NewPtrType(elem vm.Type) *PtrType {
 	t, ok := ptrTypes[elem]
 	if !ok {
@@ -42,3 +36,14 @@ func NewPtrType(elem vm.Type) *PtrType {
 	}
 	return t
 }
+
+// Type interface //////////////////////////////////////////////////////////////
+
+func (t *PtrType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
+func (t *PtrType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
+func (t *PtrType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
+func (t *PtrType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
+func (t *PtrType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
+func (t *PtrType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
+func (t *PtrType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
+func (t *PtrType) String() string                   { panic("NOT IMPLEMENTED") }

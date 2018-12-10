@@ -22,13 +22,18 @@ type FloatType struct {
 	name string
 }
 
-func (t *FloatType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
-func (t *FloatType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
-func (t *FloatType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
-func (t *FloatType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
-func (t *FloatType) String() string                   { panic("NOT IMPLEMENTED") }
-
 func MakeFloatType(bits uint, name string) *FloatType {
 	t := FloatType{commonType{}, bits, name}
 	return &t
 }
+
+// Type interface //////////////////////////////////////////////////////////////
+
+func (t *FloatType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
+func (t *FloatType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
+func (t *FloatType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
+func (t *FloatType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
+func (t *FloatType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
+func (t *FloatType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
+func (t *FloatType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
+func (t *FloatType) String() string                   { panic("NOT IMPLEMENTED") }

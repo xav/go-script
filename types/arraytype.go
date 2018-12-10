@@ -24,12 +24,6 @@ type ArrayType struct {
 	Elem vm.Type
 }
 
-func (t *ArrayType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
-func (t *ArrayType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
-func (t *ArrayType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
-func (t *ArrayType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
-func (t *ArrayType) String() string                   { panic("NOT IMPLEMENTED") }
-
 // Two array types are identical if they have identical element types and the same array length.
 
 func NewArrayType(len int64, elem vm.Type) *ArrayType {
@@ -47,3 +41,14 @@ func NewArrayType(len int64, elem vm.Type) *ArrayType {
 
 	return t
 }
+
+// Type interface //////////////////////////////////////////////////////////////
+
+func (t *ArrayType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
+func (t *ArrayType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
+func (t *ArrayType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
+func (t *ArrayType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
+func (t *ArrayType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
+func (t *ArrayType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
+func (t *ArrayType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
+func (t *ArrayType) String() string                   { panic("NOT IMPLEMENTED") }

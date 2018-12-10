@@ -20,8 +20,13 @@ type BoolType struct {
 	commonType
 }
 
+// Type interface //////////////////////////////////////////////////////////////
+
 func (t *BoolType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
 func (t *BoolType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
+func (t *BoolType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
+func (t *BoolType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
+func (t *BoolType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
 func (t *BoolType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
 func (t *BoolType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
 func (t *BoolType) String() string                   { panic("NOT IMPLEMENTED") }

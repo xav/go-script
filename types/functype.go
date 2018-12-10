@@ -20,6 +20,11 @@ import (
 	"github.com/xav/go-script/vm"
 )
 
+var (
+	funcTypes         = newTypeArrayMap()
+	variadicFuncTypes = newTypeArrayMap()
+)
+
 type FuncDecl struct {
 	Type     *FuncType
 	Name     *ast.Ident   // nil for function literals
@@ -34,15 +39,6 @@ type FuncType struct {
 	Out      []vm.Type
 	Builtin  string
 }
-
-var funcTypes = newTypeArrayMap()
-var variadicFuncTypes = newTypeArrayMap()
-
-func (t *FuncType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
-func (t *FuncType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
-func (t *FuncType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
-func (t *FuncType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
-func (t *FuncType) String() string                   { panic("NOT IMPLEMENTED") }
 
 // Two function types are identical if they have the same number of parameters and result values,
 // and if corresponding parameter and result types are identical.
@@ -70,3 +66,14 @@ func NewFuncType(in []vm.Type, variadic bool, out []vm.Type) *FuncType {
 	outMap.Put(out, t)
 	return t
 }
+
+// Type interface //////////////////////////////////////////////////////////////
+
+func (t *FuncType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
+func (t *FuncType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
+func (t *FuncType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
+func (t *FuncType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
+func (t *FuncType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
+func (t *FuncType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
+func (t *FuncType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
+func (t *FuncType) String() string                   { panic("NOT IMPLEMENTED") }

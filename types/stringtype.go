@@ -20,8 +20,13 @@ type StringType struct {
 	commonType
 }
 
+// Type interface //////////////////////////////////////////////////////////////
+
 func (t *StringType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
 func (t *StringType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
+func (t *StringType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
+func (t *StringType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
+func (t *StringType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
 func (t *StringType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
 func (t *StringType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
 func (t *StringType) String() string                   { panic("NOT IMPLEMENTED") }

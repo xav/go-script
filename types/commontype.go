@@ -16,6 +16,7 @@ package types
 
 type commonType struct{}
 
-func (t *commonType) IsIdeal() bool {
-	return false
-}
+func (t *commonType) IsBoolean() bool { return false }
+func (t *commonType) IsInteger() bool { return false }
+func (t *commonType) IsFloat() bool   { return false }
+func (t *commonType) IsIdeal() bool   { return false }

@@ -24,8 +24,13 @@ type InterfaceType struct {
 	Methods map[string]*FuncType
 }
 
+// Type interface //////////////////////////////////////////////////////////////
+
 func (t *InterfaceType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
 func (t *InterfaceType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
+func (t *InterfaceType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
+func (t *InterfaceType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
+func (t *InterfaceType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
 func (t *InterfaceType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
 func (t *InterfaceType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
 func (t *InterfaceType) String() string                   { panic("NOT IMPLEMENTED") }
