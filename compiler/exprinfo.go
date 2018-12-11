@@ -640,11 +640,107 @@ func (xi *ExprInfo) compileBuiltinCallExpr(b *context.Block, ft *types.FuncType,
 }
 
 func (xi *ExprInfo) compileCallExpr(b *context.Block, l *Expr, as []*Expr) *Expr {
-	panic("NOT IMPLEMENTED")
+	// TODO: variadic functions
+
+	// Type check
+	lt, ok := l.ExprType.Lit().(*types.FuncType)
+	if !ok {
+		xi.error("cannot call non-function type %v", l.ExprType)
+		return nil
+	}
+
+	// The arguments must be single-valued expressions assignment compatible with the parameters of F,
+	// or a single multi-valued expression.
+	nin := len(lt.In)
+	assign := xi.compileAssign(xi.pos, b, types.NewMultiType(lt.In), as, "function call", "argument")
+	if assign == nil {
+		return nil
+	}
+
+	var t vm.Type
+	nout := len(lt.Out)
+	switch nout {
+	case 0:
+		t = types.EmptyType
+	case 1:
+		t = lt.Out[0]
+	default:
+		t = types.NewMultiType(lt.Out)
+	}
+	expr := xi.newExpr(t, "function call")
+
+	// Gather argument and out types to initialize frame variables
+	vts := make([]vm.Type, nin+nout)
+	copy(vts, lt.In)
+	copy(vts[nin:], lt.Out)
+
+	// Compile
+	lf := l.asFunc()
+	call := func(t *vm.Thread) []vm.Value {
+		fun := lf(t)
+		fr := fun.NewFrame()
+		for i, t := range vts {
+			fr.Vars[i] = t.Zero()
+		}
+		assign(values.MultiV(fr.Vars[0:nin]), t)
+
+		oldf := t.Frame
+		t.Frame = fr
+		fun.Call(t)
+		t.Frame = oldf
+
+		return fr.Vars[nin : nin+nout]
+	}
+	expr.genFuncCall(call)
+	return expr
 }
 
 func (xi *ExprInfo) compileIdent(b *context.Block, constant bool, callCtx bool, name string) *Expr {
-	panic("NOT IMPLEMENTED")
+	bl, level, def := b.Lookup(name)
+	if def == nil {
+		xi.error("%s: undefined", name)
+		return nil
+	}
+
+	switch def := def.(type) {
+	case *types.Constant:
+		expr := xi.newExpr(def.Type, "constant")
+		if ft, ok := def.Type.(*types.FuncType); ok && ft.Builtin != "" {
+			if !callCtx {
+				xi.error("built-in function %s cannot be used as a value", ft.Builtin)
+				return nil
+			}
+		} else {
+			expr.genConstant(def.Value)
+		}
+		return expr
+
+	case *types.Variable:
+		if constant {
+			xi.error("variable %s used in constant expression", name)
+			return nil
+		}
+		if bl.Global {
+			return xi.compileGlobalVariable(def)
+		}
+		return xi.compileVariable(level, def)
+
+	case vm.Type:
+		if callCtx {
+			return xi.exprFromType(def)
+		}
+		xi.error("type %v used as expression", name)
+		return nil
+
+	case *context.PkgIdent:
+		return xi.compilePackageImport(name, def, constant, true)
+	}
+
+	logger.Panic().
+		Str("symbol", name).
+		Str("type", fmt.Sprintf("%T", def)).
+		Msg("symbol has unknown type")
+	panic("unreachable")
 }
 
 func (xi *ExprInfo) compileIndexExpr(l, r *Expr) *Expr {

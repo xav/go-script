@@ -119,7 +119,7 @@ func (xc *ExprCompiler) compileBasicLit(x *ast.BasicLit) *Expr {
 		logger.Panic().
 			Str("type", fmt.Sprintf("%v", x.Kind)).
 			Msg("unexpected basic literal type")
-		panic("unexpected basic literal type")
+		panic("unreachable")
 	}
 }
 

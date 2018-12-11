@@ -68,7 +68,8 @@ func (t *IntType) Zero() vm.Value {
 		res := values.IntV(0)
 		return &res
 	}
-	panic("unexpected int bit count")
+	logger.Panic().Msg("unexpected int bit count")
+	panic("unreachable")
 }
 
 // String returns the string representation of this type.
