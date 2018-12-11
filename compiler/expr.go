@@ -15,8 +15,10 @@
 package compiler
 
 import (
+	"fmt"
 	"math/big"
 
+	"github.com/xav/go-script/types"
 	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
 )
@@ -51,7 +53,99 @@ type Expr struct {
 	desc string
 }
 
-func (x *Expr) resolveIdeal(t vm.Type) *Expr { panic("NOT IMPLEMENTED") }
+// resolveIdeal converts the value of the analyzed expression x, which must be a constant ideal number,
+// to a new analyzed expression with a constant value of type t.
+func (x *Expr) resolveIdeal(t vm.Type) *Expr {
+	if !x.ExprType.IsIdeal() {
+		logger.Panic().
+			Str("type", fmt.Sprintf("%v", x.ExprType)).
+			Msgf("attempted to convert from %v, expected ideal", x.ExprType)
+	}
+
+	var rat *big.Rat
+
+	// It is an error to assign a value with a non-zero fractional part to an integer,
+	// or if the assignment would overflow or underflow, or in general if the value
+	// cannot be represented by the type of the variable.
+
+	switch x.ExprType {
+	case IdealFloatType:
+		rat = x.asIdealFloat()()
+		if t.IsInteger() && !rat.IsInt() {
+			x.error("constant %v truncated to integer", rat.FloatString(6))
+			return nil
+		}
+	case IdealIntType:
+		i := x.asIdealInt()()
+		rat = new(big.Rat).SetInt(i)
+	default:
+		logger.Panic().
+			Str("type", fmt.Sprintf("%v", x.ExprType)).
+			Msgf("unexpected ideal type %v", x.ExprType)
+	}
+
+	// Check bounds
+	if t, ok := t.Lit().(vm.BoundedType); ok {
+		if rat.Cmp(t.MinVal()) < 0 {
+			x.error("constant %v underflows %v", rat.FloatString(6), t)
+			return nil
+		}
+		if rat.Cmp(t.MaxVal()) > 0 {
+			x.error("constant %v overflows %v", rat.FloatString(6), t)
+			return nil
+		}
+	}
+
+	// Convert rat to type t.
+	res := x.newExpr(t, x.desc)
+	switch t := t.Lit().(type) {
+	case *types.UintType:
+		n, d := rat.Num(), rat.Denom()
+		f := new(big.Int).Quo(n, d)
+		f = f.Abs(f)
+		v := uint64(f.Int64())
+		res.eval = func(*vm.Thread) uint64 { return v }
+
+	case *types.IntType:
+		n, d := rat.Num(), rat.Denom()
+		f := new(big.Int).Quo(n, d)
+		v := f.Int64()
+		res.eval = func(*vm.Thread) int64 { return v }
+
+	case *types.IdealIntType:
+		n, d := rat.Num(), rat.Denom()
+		f := new(big.Int).Quo(n, d)
+		res.eval = func() *big.Int { return f }
+
+	case *types.FloatType:
+		n, d := rat.Num(), rat.Denom()
+		v := float64(n.Int64()) / float64(d.Int64())
+		res.eval = func(*vm.Thread) float64 { return v }
+
+	case *types.IdealFloatType:
+		res.eval = func() *big.Rat { return rat }
+
+	default:
+		logger.Panic().Msgf("cannot convert to type %T", t)
+	}
+
+	return res
+}
+
+// derefArray returns an expression of array type if the given expression is a *array type.
+// Otherwise, returns the given expression.
+func (x *Expr) derefArray() *Expr {
+	if pt, ok := x.ExprType.Lit().(*types.PtrType); ok {
+		if _, ok := pt.Elem.Lit().(*types.ArrayType); ok {
+			deref := x.compileStarExpr(x)
+			if deref == nil {
+				logger.Panic().Msg("failed to dereference *array")
+			}
+			return deref
+		}
+	}
+	return x
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // "As" functions retrieve evaluator functions from an expr, panicking if
