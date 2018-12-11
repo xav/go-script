@@ -15,6 +15,8 @@
 package compiler
 
 import (
+	"math/big"
+
 	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
 )
@@ -61,6 +63,12 @@ func (x *Expr) asInterface() func(*vm.Thread) interface{} { panic("NOT IMPLEMENT
 
 func (x *Expr) asPackage() func(*vm.Thread) values.PackageValue {
 	return x.eval.(func(*vm.Thread) values.PackageValue)
+}
+func (x *Expr) asIdealInt() func() *big.Int {
+	return x.eval.(func() *big.Int)
+}
+func (x *Expr) asIdealFloat() func() *big.Rat {
+	return x.eval.(func() *big.Rat)
 }
 func (x *Expr) asBool() func(*vm.Thread) bool {
 	return x.eval.(func(*vm.Thread) bool)

@@ -403,7 +403,236 @@ func (xi *ExprInfo) compilePackageImport(name string, pkg *context.PkgIdent, con
 }
 
 func (xi *ExprInfo) compileBinaryExpr(op token.Token, l, r *Expr) *Expr {
-	panic("NOT IMPLEMENTED")
+	// Save the original types of l.Type and r.Type for error messages.
+	origlt := l.ExprType
+	origrt := r.ExprType
+
+	if op != token.SHL && op != token.SHR {
+		// Except in shift expressions, if one operand has numeric type and the other operand is an ideal number,
+		// the ideal number is converted to match the type of the other operand.
+		if (l.ExprType.IsInteger() || l.ExprType.IsFloat()) && !l.ExprType.IsIdeal() && r.ExprType.IsIdeal() {
+			r = r.resolveIdeal(l.ExprType)
+		} else if (r.ExprType.IsInteger() || r.ExprType.IsFloat()) && l.ExprType.IsIdeal() && !r.ExprType.IsIdeal() {
+			l = l.resolveIdeal(r.ExprType)
+		}
+		if l == nil || r == nil {
+			return nil
+		}
+
+		// Except in shift expressions, if both operands are ideal numbers and one is an ideal float,
+		// the other is converted to ideal float.
+		if l.ExprType.IsIdeal() && r.ExprType.IsIdeal() {
+			if l.ExprType.IsInteger() && r.ExprType.IsFloat() {
+				l = l.resolveIdeal(r.ExprType)
+			} else if l.ExprType.IsFloat() && r.ExprType.IsInteger() {
+				r = r.resolveIdeal(l.ExprType)
+			}
+			if l == nil || r == nil {
+				return nil
+			}
+		}
+
+	}
+
+	// Useful type predicates
+	var (
+		compat   = func() bool { return l.ExprType.Compat(r.ExprType, false) }
+		integers = func() bool { return l.ExprType.IsInteger() && r.ExprType.IsInteger() }
+		floats   = func() bool { return l.ExprType.IsFloat() && r.ExprType.IsFloat() }
+		strings  = func() bool { return l.ExprType == builtins.StringType && r.ExprType == builtins.StringType }
+		booleans = func() bool { return l.ExprType.IsBoolean() && r.ExprType.IsBoolean() }
+	)
+
+	// Type check
+	var t vm.Type
+	switch op {
+	case token.ADD:
+		if !compat() || (!integers() && !floats() && !strings()) {
+			xi.errorOpTypes(op, origlt, origrt)
+			return nil
+		}
+		t = l.ExprType
+	case token.SUB, token.MUL, token.QUO:
+		if !compat() || (!integers() && !floats()) {
+			xi.errorOpTypes(op, origlt, origrt)
+			return nil
+		}
+		t = l.ExprType
+	case token.REM, token.AND, token.OR, token.XOR, token.AND_NOT:
+		if !compat() || !integers() {
+			xi.errorOpTypes(op, origlt, origrt)
+			return nil
+		}
+		t = l.ExprType
+	case token.SHL, token.SHR:
+		if !l.ExprType.IsInteger() || !(r.ExprType.IsInteger() || r.ExprType.IsIdeal()) {
+			xi.errorOpTypes(op, origlt, origrt)
+			return nil
+		}
+
+		// The right operand in a shift operation must be always be of unsigned integer type or an ideal
+		// number that can be safely converted into an unsigned integer type.
+		if r.ExprType.IsIdeal() {
+			r2 := r.resolveIdeal(builtins.UintType)
+			if r2 == nil {
+				return nil
+			}
+
+			// If the left operand is not ideal, convert the right to not ideal.
+			if !l.ExprType.IsIdeal() {
+				r = r2
+			}
+
+			// If both are ideal, but the right side isn't an ideal int, convert it to simplify things.
+			if l.ExprType.IsIdeal() && !r.ExprType.IsInteger() {
+				r = r.resolveIdeal(IdealIntType)
+				if r == nil {
+					logger.Panic().Msgf("conversion to uint succeeded, but conversion to ideal int failed")
+				}
+			}
+		} else if _, ok := r.ExprType.Lit().(*types.UintType); !ok {
+			xi.error("right operand of shift must be unsigned")
+			return nil
+		}
+
+		if l.ExprType.IsIdeal() && !r.ExprType.IsIdeal() {
+			l = l.resolveIdeal(builtins.IntType)
+			if l == nil {
+				return nil
+			}
+		}
+
+		// At this point, we should have one of three cases:
+		// 1) uint SHIFT uint
+		// 2) int SHIFT uint
+		// 3) ideal int SHIFT ideal int
+
+		t = l.ExprType
+
+	case token.LOR, token.LAND:
+		if !booleans() {
+			return nil
+		}
+		t = builtins.BoolType
+	case token.ARROW:
+		// The operands in channel sends differ in type: one is always a channel and the other
+		// is a variable or value of the channel's element type.
+		logger.Panic().Msg("Binary op <- not implemented")
+		t = builtins.BoolType
+	case token.LSS, token.GTR, token.LEQ, token.GEQ:
+		if !compat() || (!integers() && !floats() && !strings()) {
+			xi.errorOpTypes(op, origlt, origrt)
+			return nil
+		}
+		t = builtins.BoolType
+	case token.EQL, token.NEQ:
+		if !compat() {
+			xi.errorOpTypes(op, origlt, origrt)
+			return nil
+		}
+		t = builtins.BoolType
+	default:
+		logger.Panic().
+			Str("operator", fmt.Sprintf("%v", op)).
+			Msg("unknown binary operator")
+	}
+
+	desc, ok := binOpDescs[op]
+	if !ok {
+		desc = op.String() + " expression"
+		binOpDescs[op] = desc
+	}
+
+	// Check for ideal divide by zero
+	if op == token.QUO || op == token.REM {
+		if r.ExprType.IsIdeal() {
+			if (r.ExprType.IsInteger() && r.asIdealInt()().Sign() == 0) || (r.ExprType.IsFloat() && r.asIdealFloat()().Sign() == 0) {
+				xi.error("divide by zero")
+				return nil
+			}
+		}
+	}
+
+	//////////////////////////////////////
+	// Compile
+	expr := xi.newExpr(t, desc)
+	switch op {
+	case token.ADD: // +
+		expr.genBinOpAdd(l, r)
+	case token.SUB: // -
+		expr.genBinOpSub(l, r)
+	case token.MUL: // *
+		expr.genBinOpMul(l, r)
+	case token.QUO: // /
+		expr.genBinOpQuo(l, r)
+	case token.REM: // %
+		expr.genBinOpRem(l, r)
+
+	case token.AND: // &
+		expr.genBinOpAnd(l, r)
+	case token.OR: // |
+		expr.genBinOpOr(l, r)
+	case token.XOR: // ^
+		expr.genBinOpXor(l, r)
+	case token.AND_NOT: // &^
+		expr.genBinOpAndNot(l, r)
+	case token.SHL: // <<
+		if l.ExprType.IsIdeal() {
+			lv := l.asIdealInt()()
+			rv := r.asIdealInt()()
+			const maxShift = 99999
+			if rv.Cmp(big.NewInt(maxShift)) > 0 {
+				xi.error("left shift by %v; exceeds implementation limit of %v", rv, maxShift)
+				expr.ExprType = nil
+				return nil
+			}
+			val := new(big.Int).Lsh(lv, uint(rv.Int64()))
+			expr.eval = func() *big.Int {
+				return val
+			}
+		} else {
+			expr.genBinOpShl(l, r)
+		}
+	case token.SHR: // >>
+		if l.ExprType.IsIdeal() {
+			lv := l.asIdealInt()()
+			rv := r.asIdealInt()()
+			val := new(big.Int).Rsh(lv, uint(rv.Int64()))
+			expr.eval = func() *big.Int {
+				return val
+			}
+		} else {
+			expr.genBinOpShr(l, r)
+		}
+
+	case token.LAND: // &&
+		expr.genBinOpLogAnd(l, r)
+	case token.LOR: // ||
+		expr.genBinOpLogOr(l, r)
+
+	case token.ARROW: // <-
+		panic("Binary op <- not implemented")
+
+	case token.EQL: // ==
+		expr.genBinOpEql(l, r)
+	case token.LSS: // <
+		expr.genBinOpLss(l, r)
+	case token.GTR: // >
+		expr.genBinOpGtr(l, r)
+	case token.LEQ: // <=
+		expr.genBinOpLeq(l, r)
+	case token.GEQ: // >=
+		expr.genBinOpGeq(l, r)
+	case token.NEQ: // !=
+		expr.genBinOpNeq(l, r)
+	default:
+		logger.Panic().
+			Str("operator", fmt.Sprintf("%v", op)).
+			Msgf("Compilation of binary op %v not implemented", op)
+
+	}
+
+	return expr
 }
 
 func (xi *ExprInfo) compileBuiltinCallExpr(b *context.Block, ft *types.FuncType, as []*Expr) *Expr {
