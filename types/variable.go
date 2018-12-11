@@ -32,7 +32,7 @@ type Variable struct {
 	// Value of this variable.
 	// This is only used by Scope.NewFrame; therefore, it is useful for Global scopes
 	// but cannot be used in function scopes.
-	init vm.Value
+	Init vm.Value
 }
 
 func (v *Variable) Pos() token.Pos {
