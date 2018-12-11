@@ -181,9 +181,9 @@ func (xi *ExprInfo) compileCompositeStructType(comp *Expr, ty *types.StructType,
 				if elt == nil {
 					xi.error("cannot convert literal #%d (type %s) to type %s", i+1, elts[i].ExprType.String(), ty.Elems[i].Type.String())
 					return false
-				} else {
-					elts[i] = elt
 				}
+
+				elts[i] = elt
 			}
 		}
 		return true
@@ -286,7 +286,13 @@ func (xi *ExprInfo) compileCompositeSliceType(comp *Expr, ty *types.SliceType, e
 		for i := 0; i < sz; i++ {
 			base.Elem(t, int64(i)).Assign(t, elts[i].asValue()(t))
 		}
-		return &values.SliceV{values.Slice{base, int64(sz), int64(sz)}}
+		return &values.SliceV{
+			Slice: values.Slice{
+				Base: base,
+				Len:  int64(sz),
+				Cap:  int64(sz),
+			},
+		}
 	}
 	comp.genValue(evalFct)
 	return comp
@@ -336,9 +342,8 @@ func (xi *ExprInfo) massageLitIdeal(ty vm.Type, elts []*Expr) bool {
 				if elt == nil {
 					xi.error("cannot convert literal %d (type %s) to type %s", i+1, elts[i].ExprType.String(), ty.String())
 					return false
-				} else {
-					elts[i] = elt
 				}
+				elts[i] = elt
 			}
 		}
 	}
@@ -748,6 +753,96 @@ func (xi *ExprInfo) compileIndexExpr(l, r *Expr) *Expr {
 }
 
 func (xi *ExprInfo) compileSliceExpr(arr, lo, hi *Expr) *Expr {
+	arr = arr.derefArray()
+
+	// Type check object
+	var at vm.Type
+	var maxIndex int64 = -1
+	switch lt := arr.ExprType.Lit().(type) {
+	case *types.ArrayType:
+		at = types.NewSliceType(lt.Elem)
+		maxIndex = lt.Len
+	case *types.SliceType:
+		at = lt
+	case *types.StringType:
+		at = lt
+	default:
+		xi.error("cannot slice %v", arr.ExprType)
+		return nil
+	}
+
+	// Type check index and convert to int
+	lo = lo.convertToInt(maxIndex, "slice", "slice")
+	hi = hi.convertToInt(maxIndex, "slice", "slice")
+	if lo == nil || hi == nil {
+		return nil
+	}
+
+	//////////////////////////////////////
+	// Compile
+
+	expr := xi.newExpr(at, "slice expression")
+	lof := lo.asInt()
+	hif := hi.asInt()
+
+	switch lt := arr.ExprType.Lit().(type) {
+	case *types.ArrayType:
+		arrf := arr.asArray()
+		bound := lt.Len
+		expr.eval = func(t *vm.Thread) values.Slice {
+			arr, lo, hi := arrf(t), lof(t), hif(t)
+			if lo > hi || hi > bound || lo < 0 {
+				t.Abort(vm.SliceError{
+					Lo:  lo,
+					Hi:  hi,
+					Cap: bound,
+				})
+			}
+			return values.Slice{
+				Base: arr.Sub(lo, bound-lo),
+				Len:  hi - lo,
+				Cap:  bound - lo,
+			}
+		}
+
+	case *types.SliceType:
+		arrf := arr.asSlice()
+		expr.eval = func(t *vm.Thread) values.Slice {
+			arr, lo, hi := arrf(t), lof(t), hif(t)
+			if lo > hi || hi > arr.Cap || lo < 0 {
+				t.Abort(vm.SliceError{
+					Lo:  lo,
+					Hi:  hi,
+					Cap: arr.Cap,
+				})
+			}
+			return values.Slice{
+				Base: arr.Base.Sub(lo, arr.Cap-lo),
+				Len:  hi - lo,
+				Cap:  arr.Cap - lo,
+			}
+		}
+
+	case *types.StringType:
+		arrf := arr.asString()
+		expr.eval = func(t *vm.Thread) string {
+			arr, lo, hi := arrf(t), lof(t), hif(t)
+			if lo > hi || hi > int64(len(arr)) || lo < 0 {
+				t.Abort(vm.SliceError{
+					Lo:  lo,
+					Hi:  hi,
+					Cap: int64(len(arr)),
+				})
+			}
+			return arr[lo:hi]
+		}
+
+	default:
+		logger.Panic().
+			Str("type", fmt.Sprintf("%T", arr.ExprType.Lit())).
+			Msg("unexpected left operand type")
+	}
+
 	panic("NOT IMPLEMENTED")
 }
 

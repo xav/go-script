@@ -23,6 +23,18 @@ type SliceType struct {
 	Elem vm.Type
 }
 
+func NewSliceType(elem vm.Type) *SliceType {
+	t, ok := sliceTypes[elem]
+	if !ok {
+		t = &SliceType{
+			commonType: commonType{},
+			Elem:       elem,
+		}
+		sliceTypes[elem] = t
+	}
+	return t
+}
+
 // Type interface //////////////////////////////////////////////////////////////
 
 func (t *SliceType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }

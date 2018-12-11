@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/xav/go-script/builtins"
 	"github.com/xav/go-script/types"
 	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
@@ -130,6 +131,44 @@ func (x *Expr) resolveIdeal(t vm.Type) *Expr {
 	}
 
 	return res
+}
+
+// convertToInt converts this expression to an integer, if possible, or produces an error if not.
+// It accepts big ints, uints, and ints.
+// If max is not -1, produces an error if the value exceeds max.
+// If negErr is not "", produces an error if the value is negative.
+func (x *Expr) convertToInt(max int64, negErr string, errOp string) *Expr {
+	switch x.ExprType.Lit().(type) {
+	case *types.IdealIntType:
+		val := x.asIdealInt()()
+		if negErr != "" && val.Sign() < 0 {
+			x.error("negative %s: %s", negErr, val)
+			return nil
+		}
+		bound := max
+		if negErr == "slice" {
+			bound++
+		}
+		if max != -1 && val.Cmp(big.NewInt(bound)) >= 0 {
+			x.error("index %s exceeds length %d", val, max)
+			return nil
+		}
+		return x.resolveIdeal(builtins.IntType)
+
+	case *types.UintType:
+		// Convert to int
+		na := x.newExpr(builtins.IntType, x.desc)
+		af := x.asUint()
+		na.eval = func(t *vm.Thread) int64 { return int64(af(t)) }
+		return na
+
+	case *types.IntType:
+		// Good as is
+		return x
+	}
+
+	x.error("illegal operand type for %s: %v", errOp, x.ExprType)
+	return nil
 }
 
 // derefArray returns an expression of array type if the given expression is a *array type.
