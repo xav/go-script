@@ -14,7 +14,11 @@
 
 package values
 
-import "github.com/xav/go-script/vm"
+import (
+	"errors"
+
+	"github.com/xav/go-script/vm"
+)
 
 type PackageValue interface {
 	vm.Value
@@ -29,5 +33,18 @@ type PackageV struct {
 	Idents []vm.Value
 }
 
-func (v *PackageV) String() string                  { panic("NOT IMPLEMENTED") }
-func (v *PackageV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
+func (v *PackageV) String() string {
+	return v.Name
+}
+
+func (v *PackageV) Assign(t *vm.Thread, o vm.Value) {
+	t.Abort(errors.New("cant assign to a package"))
+}
+
+func (v *PackageV) Get(*vm.Thread) PackageValue {
+	return v
+}
+
+func (v *PackageV) Ident(t *vm.Thread, n int) vm.Value {
+	return v.Idents[n]
+}

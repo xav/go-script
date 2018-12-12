@@ -19,6 +19,7 @@ import (
 	"go/token"
 
 	"github.com/xav/go-script/vm"
+	"github.com/xav/horus/warden/vm/value"
 )
 
 // NamedType represents a user defined type.
@@ -28,8 +29,14 @@ import (
 type NamedType struct {
 	NTPos      token.Pos
 	Name       string
-	Def        vm.Type // Underlying type.
-	Incomplete bool    // True while this type is being defined.
+	Def        vm.Type           // Underlying type.
+	Incomplete bool              // True while this type is being defined.
+	Methods    map[string]Method //
+}
+
+type Method struct {
+	decl *FuncDecl
+	fn   value.Func
 }
 
 // Pos returns the position of the definition in the source code

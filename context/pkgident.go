@@ -19,7 +19,7 @@ import "go/token"
 type PkgIdent struct {
 	PkgPos token.Pos
 	path   string // the unique path to that package
-	scope  *Scope // the scope holding the package definition(s)
+	Scope  *Scope // the scope holding the package definition(s)
 }
 
 func (p *PkgIdent) Pos() token.Pos {

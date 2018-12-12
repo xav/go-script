@@ -183,7 +183,7 @@ func (b *Block) DefinePackage(id, path string, pos token.Pos) (*PkgIdent, Def) {
 	p := &PkgIdent{
 		PkgPos: pos,
 		path:   path,
-		scope:  Universe.Pkgs[path],
+		Scope:  Universe.Pkgs[path],
 	}
 	b.Defs[id] = p
 

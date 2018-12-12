@@ -15,7 +15,9 @@
 package compiler
 
 import (
+	"errors"
 	"fmt"
+	"go/ast"
 	"go/token"
 	"math/big"
 	"strconv"
@@ -404,7 +406,53 @@ func (xi *ExprInfo) compileStringList(list []*Expr) *Expr {
 ////////////////////////////////////////////////////////////////////////////////
 
 func (xi *ExprInfo) compilePackageImport(name string, pkg *context.PkgIdent, constant, callCtx bool) *Expr {
-	panic("NOT IMPLEMENTED")
+	fields := make([]types.PackageField, 0)
+	vals := make([]vm.Value, 0)
+
+	for k, v := range pkg.Scope.Defs {
+		// filter out non-exported definitions
+		if !ast.IsExported(k) {
+			continue
+		}
+
+		var fty vm.Type
+		var fva vm.Value
+		switch vv := v.(type) {
+		case *types.Variable:
+			fty = vv.Type
+			fva = vv.Init
+		case *types.Constant:
+			fty = vv.Type
+			fva = vv.Value
+		case *types.NamedType:
+			fty = vv.Def
+			fva = fty.Zero()
+		case *context.PkgIdent:
+			continue // ignore, do not export packages from an import
+		default:
+			logger.Panic().
+				Str("type", fmt.Sprintf("%T", vv)).
+				Msg("unhandled Def type")
+		}
+		field := types.PackageField{Name: k, Type: fty}
+		fields = append(fields, field)
+		vals = append(vals, fva)
+	}
+
+	pkgty := types.NewPackageType(name, fields)
+	pkgexpr := xi.newExpr(pkgty, "package")
+	idents := []*Expr{}
+	for _, f := range pkgty.Elems {
+		idents = append(idents, xi.compileIdent(pkg.Scope.Block, constant, callCtx, f.Name))
+	}
+
+	pkgexpr.eval = func(t *vm.Thread) values.PackageValue {
+		out := pkgty.Zero().(*values.PackageV)
+		out.Name = name
+		out.Idents = vals
+		return out
+	}
+	return pkgexpr
 }
 
 func (xi *ExprInfo) compileBinaryExpr(op token.Token, l, r *Expr) *Expr {
@@ -641,7 +689,366 @@ func (xi *ExprInfo) compileBinaryExpr(op token.Token, l, r *Expr) *Expr {
 }
 
 func (xi *ExprInfo) compileBuiltinCallExpr(b *context.Block, ft *types.FuncType, as []*Expr) *Expr {
-	panic("NOT IMPLEMENTED")
+	// helper function the check arguments count
+	checkCount := func(min, max int) bool {
+		if len(as) < min {
+			xi.error("not enough arguments to %s", ft.Builtin)
+			return false
+		} else if max != -1 {
+			if len(as) > max {
+				xi.error("too many arguments to %s", ft.Builtin)
+				return false
+			}
+		}
+		return true
+	}
+
+	switch ft {
+	//////////////////////////////////////
+	case builtins.CloseType:
+		xi.error("built-in function %s not implemented", ft.Builtin)
+		return nil
+
+	//////////////////////////////////////
+	case builtins.LenType:
+		if !checkCount(1, 1) {
+			return nil
+		}
+
+		arg := as[0].derefArray()
+		expr := xi.newExpr(builtins.IntType, "function call")
+		switch t := arg.ExprType.Lit().(type) {
+		case *types.StringType:
+			vf := arg.asString()
+			expr.eval = func(t *vm.Thread) int64 {
+				return int64(len(vf(t)))
+			}
+		case *types.ArrayType:
+			v := t.Len
+			expr.eval = func(t *vm.Thread) int64 {
+				return v
+			}
+		case *types.SliceType:
+			vf := arg.asSlice()
+			expr.eval = func(t *vm.Thread) int64 {
+				return vf(t).Len
+			}
+		case *types.MapType:
+			vf := arg.asMap()
+			expr.eval = func(t *vm.Thread) int64 {
+				m := vf(t)
+				if m == nil {
+					return 0
+				}
+				return m.Len(t)
+			}
+		case *types.ChanType:
+			xi.error("channels are not implemented")
+		default:
+			xi.error("illegal argument type for len function\n\t%v", arg.ExprType)
+			return nil
+		}
+
+	//////////////////////////////////////
+	case builtins.CapType:
+		if !checkCount(1, 1) {
+			return nil
+		}
+		arg := as[0].derefArray()
+		expr := xi.newExpr(builtins.IntType, "function call")
+
+		switch t := arg.ExprType.Lit().(type) {
+		case *types.ArrayType:
+			v := t.Len
+			expr.eval = func(t *vm.Thread) int64 {
+				return v
+			}
+		case *types.SliceType:
+			vf := arg.asSlice()
+			expr.eval = func(t *vm.Thread) int64 { return vf(t).Cap }
+		case *types.ChanType:
+			xi.error("channels are not implemented")
+
+		default:
+			xi.error("illegal argument type for cap function\n\t%v", arg.ExprType)
+			return nil
+		}
+
+	//////////////////////////////////////
+	case builtins.NewType:
+		if !checkCount(1, 1) {
+			return nil
+		}
+		t := as[0].valType
+		expr := xi.newExpr(types.NewPtrType(t), "new")
+		expr.eval = func(*vm.Thread) vm.Value {
+			return t.Zero()
+		}
+		return expr
+
+	//////////////////////////////////////
+	case builtins.MakeType:
+		if !checkCount(1, 3) {
+			return nil
+		}
+		var lenexpr, capexpr *Expr
+		var lenf, capf func(*vm.Thread) int64
+		if len(as) > 1 {
+			lenexpr = as[1].convertToInt(-1, "length", "make function")
+			if lenexpr == nil {
+				return nil
+			}
+			lenf = lenexpr.asInt()
+		}
+		if len(as) > 2 {
+			capexpr = as[2].convertToInt(-1, "capacity", "make function")
+			if capexpr == nil {
+				return nil
+			}
+			capf = capexpr.asInt()
+		}
+
+		switch t := as[0].valType.Lit().(type) {
+		case *types.SliceType:
+			// A new, initialized slice value for a given element type T is made using the built-in
+			// function make, which takes a slice type and parameters specifying the length and
+			// optionally the capacity.
+			if !checkCount(2, 3) {
+				return nil
+			}
+
+			et := t.Elem
+			expr := xi.newExpr(t, "function call")
+			expr.eval = func(t *vm.Thread) values.Slice {
+				l := lenf(t)
+				if l < 0 {
+					t.Abort(vm.NegativeLengthError{Len: l})
+				}
+
+				c := l
+				if capf != nil {
+					c = capf(t)
+					if c < 0 {
+						t.Abort(vm.NegativeCapacityError{Len: c})
+					}
+					if l > c {
+						c = l
+					}
+				}
+
+				base := values.ArrayV(make([]vm.Value, c))
+				for i := int64(0); i < c; i++ {
+					base[i] = et.Zero()
+				}
+
+				return values.Slice{
+					Base: &base,
+					Len:  l,
+					Cap:  c,
+				}
+			}
+
+			return expr
+
+		case *types.MapType:
+			// A new, empty map value is made using the built-in function make, which takes the map
+			// type and an optional capacity hint as arguments.
+			if !checkCount(1, 2) {
+				return nil
+			}
+			expr := xi.newExpr(t, "function call")
+			expr.eval = func(t *vm.Thread) values.Map {
+				if lenf == nil {
+					return make(EvalMap)
+				}
+				l := lenf(t)
+				return make(EvalMap, l)
+			}
+			return expr
+
+		case *types.ChanType:
+			xi.error("channels are not implemented")
+
+		default:
+			xi.error("illegal argument type for make function\n\t%v", as[0].valType)
+			return nil
+		}
+
+	//////////////////////////////////////
+	case builtins.AppendType:
+		if !checkCount(2, -1) {
+			return nil
+		}
+
+		arg := as[0].derefArray()
+		var elmty vm.Type
+
+		switch t := arg.ExprType.Lit().(type) {
+		case *types.SliceType:
+			elmty = t.Elem
+		default:
+			xi.error("illegal argument type for 'append' function\n\t%v", arg.ExprType)
+			return nil
+		}
+
+		srcs := make([]*Expr, len(as[1:]))
+		for i := range as[1:] {
+			srcs[i] = as[i+1].derefArray()
+			src := srcs[i]
+			srct := src.ExprType.Lit()
+
+			if srct.IsIdeal() {
+				src = src.resolveIdeal(elmty)
+				if src == nil {
+					xi.error("cannot convert argument %d (type %s) to type %s in 'append'", i+1, srct.String(), elmty.String())
+					return nil
+				}
+				srct = src.ExprType.Lit()
+			}
+
+			withConv := false
+			if !srct.Compat(elmty, withConv) {
+				xi.error("cannot use %v (type %s) as type %s in 'append'", as[i+1].desc, srct.String(), elmty.String())
+				return nil
+			}
+			srcs[i] = src
+		}
+
+		expr := xi.newExpr(types.NewSliceType(elmty), "function call")
+		inVal := as[0].derefArray().asSlice()
+		expr.eval = func(t *vm.Thread) values.Slice {
+			srcSz := inVal(t).Len
+			sz := srcSz + int64(len(as[1:]))
+			dstt := types.NewArrayType(sz, elmty)
+			base := dstt.Zero().(*values.ArrayV)
+			if srcSz > 0 {
+				base.Sub(0, srcSz).Assign(t, inVal(t).Base)
+			}
+			for i := range as[1:] {
+				src := srcs[i]
+				var val = src.asValue()(t)
+				base.Elem(t, int64(i)+srcSz).Assign(t, val)
+			}
+			return values.Slice{
+				Base: base,
+				Len:  sz,
+				Cap:  sz,
+			}
+		}
+
+		return expr
+
+	//////////////////////////////////////
+	case builtins.CopyType:
+		if !checkCount(2, 2) {
+			return nil
+		}
+		src := as[1]
+		dst := as[0]
+		if src.ExprType != dst.ExprType {
+			xi.error("arguments to built-in function 'copy' must have same type\nsrc: %s\ndst: %s\n", src.ExprType, dst.ExprType)
+			return nil
+		}
+		if _, ok := src.ExprType.Lit().(*types.SliceType); !ok {
+			xi.error("src argument to 'copy' must be a slice (got: %s)", src.ExprType)
+			return nil
+		}
+		if _, ok := dst.ExprType.Lit().(*types.SliceType); !ok {
+			xi.error("dst argument to 'copy' must be a slice (got: %s)", dst.ExprType)
+			return nil
+		}
+		expr := xi.newExpr(builtins.IntType, "function call")
+		srcf := src.asSlice()
+		dstf := dst.asSlice()
+		expr.eval = func(t *vm.Thread) int64 {
+			src, dst := srcf(t), dstf(t)
+			nElems := src.Len
+			if nElems > dst.Len {
+				nElems = dst.Len
+			}
+			dst.Base.Sub(0, nElems).Assign(t, src.Base.Sub(0, nElems))
+			return nElems
+		}
+		return expr
+
+	//////////////////////////////////////
+	case builtins.DeleteType:
+		xi.error("built-in function %s not implemented", ft.Builtin)
+		return nil
+
+	//////////////////////////////////////
+	case builtins.ComplexType:
+		xi.error("built-in function %s not implemented", ft.Builtin)
+		return nil
+	//////////////////////////////////////
+	case builtins.RealType:
+		xi.error("built-in function %s not implemented", ft.Builtin)
+		return nil
+	//////////////////////////////////////
+	case builtins.ImagType:
+		xi.error("built-in function %s not implemented", ft.Builtin)
+		return nil
+
+	//////////////////////////////////////
+	case builtins.PanicType, builtins.PrintType, builtins.PrintlnType:
+		evals := make([]func(*vm.Thread) interface{}, len(as))
+		for i, x := range as {
+			evals[i] = x.asInterface()
+		}
+		spaces := ft == builtins.PrintlnType
+		newline := ft != builtins.PrintType
+		printer := func(t *vm.Thread) {
+			for i, eval := range evals {
+				if i > 0 && spaces {
+					print(" ")
+				}
+				v := eval(t)
+				type stringer interface {
+					String() string
+				}
+				switch v1 := v.(type) {
+				case bool:
+					print(v1)
+				case uint64:
+					print(v1)
+				case int64:
+					print(v1)
+				case float64:
+					print(v1)
+				case string:
+					print(v1)
+				case stringer:
+					print(v1.String())
+				default:
+					print("???")
+				}
+			}
+			if newline {
+				print("\n")
+			}
+		}
+
+		expr := xi.newExpr(types.EmptyType, "print")
+		expr.Exec = printer
+		if ft == builtins.PanicType {
+			expr.Exec = func(t *vm.Thread) {
+				printer(t)
+				t.Abort(errors.New("panic"))
+			}
+		}
+		return expr
+
+	//////////////////////////////////////
+	case builtins.RecoverType:
+		xi.error("built-in function %s not implemented", ft.Builtin)
+		return nil
+
+	}
+
+	logger.Panic().
+		Str("builtin", ft.Builtin).
+		Msg("unexpected built-in function")
+	panic("unreachable")
 }
 
 func (xi *ExprInfo) compileCallExpr(b *context.Block, l *Expr, as []*Expr) *Expr {
@@ -749,7 +1156,136 @@ func (xi *ExprInfo) compileIdent(b *context.Block, constant bool, callCtx bool, 
 }
 
 func (xi *ExprInfo) compileIndexExpr(l, r *Expr) *Expr {
-	panic("NOT IMPLEMENTED")
+	l = l.derefArray()
+
+	var (
+		at       vm.Type
+		intIndex bool
+		maxIndex int64 = -1
+	)
+
+	// Type check object
+	switch lt := l.ExprType.Lit().(type) {
+	case *types.ArrayType:
+		at = lt.Elem
+		intIndex = true
+		maxIndex = lt.Len
+	case *types.SliceType:
+		at = lt.Elem
+		intIndex = true
+	case *types.StringType:
+		at = builtins.Uint8Type
+		intIndex = true
+	case *types.MapType:
+		at = lt.Elem
+		intIndex = false
+		if r.ExprType.IsIdeal() {
+			r = r.resolveIdeal(lt.Key)
+			if r == nil {
+				return nil
+			}
+		}
+		if !lt.Key.Compat(r.ExprType, false) {
+			xi.error("cannot use %s as index into %s", r.ExprType, lt)
+			return nil
+		}
+
+	default:
+		xi.error("cannot index into %v", l.ExprType)
+		return nil
+	}
+
+	// Type check index and convert to int if necessary
+	if intIndex {
+		r = r.convertToInt(maxIndex, "index", "index")
+		if r == nil {
+			return nil
+		}
+	}
+
+	//////////////////////////////////////
+	// Compile
+
+	expr := xi.newExpr(at, "index expression")
+	switch lt := l.ExprType.Lit().(type) {
+	case *types.ArrayType:
+		lf := l.asArray()
+		rf := r.asInt()
+		bound := lt.Len
+		expr.genValue(func(t *vm.Thread) vm.Value {
+			l, r := lf(t), rf(t)
+			if r < 0 || r >= bound {
+				t.Abort(vm.IndexError{
+					Idx: r,
+					Len: bound,
+				})
+			}
+			return l.Elem(t, r)
+		})
+
+	case *types.SliceType:
+		lf := l.asSlice()
+		rf := r.asInt()
+		expr.genValue(func(t *vm.Thread) vm.Value {
+			l, r := lf(t), rf(t)
+			if l.Base == nil {
+				t.Abort(vm.NilPointerError{})
+			}
+			if r < 0 || r >= l.Len {
+				t.Abort(vm.IndexError{
+					Idx: r,
+					Len: l.Len,
+				})
+			}
+			return l.Base.Elem(t, r)
+		})
+
+	case *types.StringType:
+		lf := l.asString()
+		rf := r.asInt()
+		expr.eval = func(t *vm.Thread) uint64 {
+			l, r := lf(t), rf(t)
+			if r < 0 || r >= int64(len(l)) {
+				t.Abort(vm.IndexError{
+					Idx: r,
+					Len: int64(len(l)),
+				})
+			}
+			return uint64(l[r])
+		}
+
+	case *types.MapType:
+		lf := l.asMap()
+		rf := r.asInterface()
+		expr.genValue(func(t *vm.Thread) vm.Value {
+			m := lf(t)
+			k := rf(t)
+			if m == nil {
+				t.Abort(vm.NilPointerError{})
+			}
+			e := m.Elem(t, k)
+			if e == nil {
+				t.Abort(vm.KeyError{
+					Key: k,
+				})
+			}
+			return e
+		})
+
+		// genValue makes things addressable, but map values aren't addressable.
+		expr.evalAddr = nil
+		expr.evalMapValue = func(t *vm.Thread) (values.Map, interface{}) {
+			// TODO: Key check?  nil check?
+			return lf(t), rf(t)
+		}
+
+	default:
+		logger.Panic().
+			Str("type", fmt.Sprintf("%T", l.ExprType.Lit())).
+			Msg("unexpected left operand type")
+	}
+
+	return expr
 }
 
 func (xi *ExprInfo) compileSliceExpr(arr, lo, hi *Expr) *Expr {
@@ -843,21 +1379,254 @@ func (xi *ExprInfo) compileSliceExpr(arr, lo, hi *Expr) *Expr {
 			Msg("unexpected left operand type")
 	}
 
-	panic("NOT IMPLEMENTED")
+	return expr
 }
 
 func (xi *ExprInfo) compileKeyValueExpr(key, val *Expr) *Expr {
-	panic("NOT IMPLEMENTED")
+	// FIXME: one should somehow combine the two 'key' and 'val' expressions...
+	return val
 }
 
 func (xi *ExprInfo) compileSelectorExpr(v *Expr, name string) *Expr {
-	panic("NOT IMPLEMENTED")
+	bestDepth := -1
+	ambiguous := false
+	amberr := ""
+
+	//////////////////////////////////////
+	// mark marks a field that matches the selector name.
+	// It tracks the best depth found so far and whether more than one field has been found at that depth.
+	mark := func(depth int, pathName string) {
+		switch {
+		case bestDepth == -1 || depth < bestDepth:
+			bestDepth = depth
+			ambiguous = false
+			amberr = ""
+		case depth == bestDepth:
+			ambiguous = true
+		default:
+			logger.Panic().Msgf("Marked field at depth %d, but already found one at depth %d", depth, bestDepth)
+		}
+		amberr += "\n\t" + pathName[1:]
+	}
+
+	//////////////////////////////////////
+	// find recursively searches for the named field, starting at type t.
+	// If it finds the named field, it returns a function which takes an expr that
+	// represents a value of type 't' and returns an expr that retrieves the named field.
+	//
+	// We delay expr construction to avoid producing lots of useless expr's as we search.
+	visited := make(map[vm.Type]bool)
+	var find func(vm.Type, int, string) func(*Expr) *Expr
+	find = func(t vm.Type, depth int, pathName string) func(*Expr) *Expr {
+		// Don't bother looking if we've found something shallower
+		if bestDepth != -1 && bestDepth < depth {
+			return nil
+		}
+
+		// Don't check the same type twice and avoid loops
+		if visited[t] {
+			return nil
+		}
+		visited[t] = true
+
+		// Implicit dereference
+		deref := false
+		if ti, ok := t.(*types.PtrType); ok {
+			deref = true
+			t = ti.Elem
+		}
+
+		var builder func(*Expr) *Expr
+
+		// If it's a named type, look for methods
+		if ti, ok := t.(*types.NamedType); ok {
+			_, ok := ti.Methods[name]
+			if ok {
+				mark(depth, pathName+"."+name)
+				logger.Panic().Msg("Named type methods not implemented")
+			}
+			t = ti.Def
+		}
+
+		// If it's a struct type, check fields and embedded types
+		if t, ok := t.(*types.StructType); ok {
+			for i, f := range t.Elems {
+				var sub func(*Expr) *Expr
+				switch {
+				case f.Name == name:
+					mark(depth, pathName+"."+name)
+					sub = func(e *Expr) *Expr { return e }
+				case f.Anonymous:
+					sub = find(f.Type, depth+1, pathName+"."+f.Name)
+					if sub == nil {
+						continue
+					}
+				default:
+				}
+
+				// We found something.
+				// Create a builder for accessing this field.
+				ft := f.Type
+				index := i
+				builder = func(parent *Expr) *Expr {
+					if deref {
+						parent = xi.compileStarExpr(parent)
+					}
+					expr := xi.newExpr(ft, "selector expression")
+					pf := parent.asStruct()
+					evalAddr := func(t *vm.Thread) vm.Value {
+						return pf(t).Field(t, index)
+					}
+					expr.genValue(evalAddr)
+					return sub(expr)
+				}
+			}
+		}
+
+		// If it's a package type, check fields
+		if t, ok := t.(*types.PackageType); ok {
+			for i, f := range t.Elems {
+				var sub func(*Expr) *Expr
+				switch {
+				case f.Name == name:
+					mark(depth, pathName+"."+name)
+					sub = func(e *Expr) *Expr { return e }
+				default:
+					continue
+				}
+
+				// We found something.
+				// Create a builder for accessing this field.
+				ft := f.Type
+				index := i
+				builder = func(parent *Expr) *Expr {
+					if deref {
+						parent = xi.compileStarExpr(parent)
+					}
+					expr := xi.newExpr(ft, "selector expression")
+					pf := parent.asPackage()
+					evalAddr := func(t *vm.Thread) vm.Value {
+						return pf(t).Ident(t, index)
+					}
+					expr.genValue(evalAddr)
+					return sub(expr)
+				}
+			}
+		}
+
+		return builder
+	}
+
+	//////////////////////////////////////
+
+	builder := find(v.ExprType, 0, "")
+	if builder == nil {
+		xi.error("type %v has no field or method %s", v.ExprType, name)
+		return nil
+	}
+
+	if ambiguous {
+		xi.error("field %s is ambiguous in type %v%s", name, v.ExprType, amberr)
+		return nil
+	}
+
+	return builder(v)
 }
 
 func (xi *ExprInfo) compileStarExpr(v *Expr) *Expr {
-	panic("NOT IMPLEMENTED")
+	switch vt := v.ExprType.Lit().(type) {
+	case *types.PtrType:
+		expr := xi.newExpr(vt.Elem, "indirect expression")
+		vf := v.asPtr()
+		expr.genValue(func(t *vm.Thread) vm.Value {
+			v := vf(t)
+			if v == nil {
+				t.Abort(vm.NilPointerError{})
+			}
+			return v
+		})
+		return expr
+	}
+
+	xi.errorOpType(token.MUL, v.ExprType)
+	return nil
 }
 
 func (xi *ExprInfo) compileUnaryExpr(op token.Token, v *Expr) *Expr {
-	panic("NOT IMPLEMENTED")
+	// Type check
+	var t vm.Type
+
+	switch op {
+	case token.ADD, token.SUB:
+		if !v.ExprType.IsInteger() && !v.ExprType.IsFloat() {
+			xi.errorOpType(op, v.ExprType)
+			return nil
+		}
+		t = v.ExprType
+
+	case token.NOT:
+		if !v.ExprType.IsBoolean() {
+			xi.errorOpType(op, v.ExprType)
+			return nil
+		}
+		t = builtins.BoolType
+
+	case token.XOR:
+		if !v.ExprType.IsInteger() {
+			xi.errorOpType(op, v.ExprType)
+			return nil
+		}
+		t = v.ExprType
+
+	case token.AND:
+		// The unary prefix address-of operator & generates the address of its operand, which must be a
+		// variable, pointer indirection, field selector, or array/slice indexing operation.
+		// TODO: Implement "It is illegal to take the address of a function result variable" once functions have result variables.
+		if v.evalAddr == nil {
+			xi.error("cannot take the address of %s", v.desc)
+			return nil
+		}
+		t = types.NewPtrType(v.ExprType)
+
+	case token.ARROW:
+		logger.Panic().Msg("Unary op <- not implemented")
+
+	default:
+		logger.Panic().
+			Str("operator", fmt.Sprintf("%v", op)).
+			Msg("unknown unary operator")
+	}
+
+	desc, ok := unaryOpDescs[op]
+	if !ok {
+		desc = "unary " + op.String() + " expression"
+		unaryOpDescs[op] = desc
+	}
+
+	//////////////////////////////////////
+	// Compile
+
+	expr := xi.newExpr(t, desc)
+	switch op {
+	case token.ADD: // +
+		expr = v
+		expr.desc = desc
+	case token.SUB: // -
+		expr.genUnaryOpNeg(v)
+	case token.NOT: // !
+		expr.genUnaryOpNot(v)
+	case token.XOR: // ^
+		expr.genUnaryOpXor(v)
+	case token.AND: // &
+		vf := v.evalAddr
+		expr.eval = func(t *vm.Thread) vm.Value { return vf(t) }
+
+	default:
+		logger.Panic().
+			Str("operator", fmt.Sprintf("%v", op)).
+			Msgf("Compilation of unary op %v not implemented", op)
+
+	}
+
+	return expr
 }

@@ -29,5 +29,34 @@ type ArrayValue interface {
 
 type ArrayV []vm.Value
 
-func (v *ArrayV) String() string                  { panic("NOT IMPLEMENTED") }
-func (v *ArrayV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
+func (v *ArrayV) String() string {
+	res := "{"
+	for i, e := range *v {
+		if i > 0 {
+			res += ", "
+		}
+		res += e.String()
+	}
+	return res + "}"
+}
+
+func (v *ArrayV) Assign(t *vm.Thread, o vm.Value) {
+	oa := o.(ArrayValue)
+	l := int64(len(*v))
+	for i := int64(0); i < l; i++ {
+		(*v)[i].Assign(t, oa.Elem(t, i))
+	}
+}
+
+func (v *ArrayV) Get(*vm.Thread) ArrayValue {
+	return v
+}
+
+func (v *ArrayV) Elem(t *vm.Thread, i int64) vm.Value {
+	return (*v)[i]
+}
+
+func (v *ArrayV) Sub(i int64, len int64) ArrayValue {
+	res := (*v)[i : i+len]
+	return &res
+}
