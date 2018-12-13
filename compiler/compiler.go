@@ -86,6 +86,10 @@ func (cc *Compiler) compileFuncType(b *context.Block, typ *ast.FuncType) *types.
 	return fd
 }
 
+func (cc *Compiler) compileFunc(b *context.Block, decl *types.FuncDecl, body *ast.BlockStmt) func(*vm.Thread) values.Func {
+	panic("NOT IMPLEMENTED")
+}
+
 // compileAssign compiles an assignment operation without the full generality of an assignCompiler.
 // See assignCompiler for a description of the arguments.
 func (cc *Compiler) compileAssign(pos token.Pos, b *context.Block, lt vm.Type, rs []*Expr, errOp, errPosName string) func(vm.Value, *vm.Thread) {
@@ -96,9 +100,41 @@ func (cc *Compiler) compileAssign(pos token.Pos, b *context.Block, lt vm.Type, r
 // This always returns an assignCompiler with rmt set, but if type checking fails, slots in the MultiType may be nil.
 // If rs contains nil's, type checking will fail and these expressions given a nil type.
 func (cc *Compiler) checkAssign(pos token.Pos, rs []*Expr, errOp, errPosName string) (*assignCompiler, bool) {
-	panic("NOT IMPLEMENTED")
-}
+	c := &assignCompiler{
+		Compiler:   cc,
+		pos:        pos,
+		rs:         rs,
+		errOp:      errOp,
+		errPosName: errPosName,
+	}
 
-func (cc *Compiler) compileFunc(b *context.Block, decl *types.FuncDecl, body *ast.BlockStmt) func(*vm.Thread) values.Func {
-	panic("NOT IMPLEMENTED")
+	// Is this an unpack?
+	if len(rs) == 1 && rs[0] != nil {
+		if rmt, isUnpack := rs[0].ExprType.(*types.MultiType); isUnpack {
+			c.rmt = rmt
+			c.isUnpack = true
+			return c, true
+		}
+	}
+
+	// Create MultiType for RHS and check that all RHS expressions are single-valued.
+	rts := make([]vm.Type, len(rs))
+	ok := true
+	for i, r := range rs {
+		if r == nil {
+			ok = false
+			continue
+		}
+
+		if _, isMT := r.ExprType.(*types.MultiType); isMT {
+			r.error("multi-valued expression not allowed in %s", errOp)
+			ok = false
+			continue
+		}
+
+		rts[i] = r.ExprType
+	}
+
+	c.rmt = types.NewMultiType(rts)
+	return c, ok
 }
