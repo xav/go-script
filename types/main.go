@@ -19,3 +19,9 @@ import (
 )
 
 var logger = log.With().Str("component", "script.types").Logger()
+
+func init() {
+	initFloatMinMax()
+	initIntMinMax()
+	initUintMinMax()
+}

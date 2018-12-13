@@ -14,18 +14,23 @@
 
 package types
 
-import "github.com/xav/go-script/vm"
+import (
+	"github.com/xav/go-script/values"
+	"github.com/xav/go-script/vm"
+)
 
 var arrayTypes = make(map[int64]map[vm.Type]*ArrayType)
 
+// ArrayType is used to represent array types (https://golang.org/ref/spec#Array_types).
 type ArrayType struct {
 	commonType
-	Len  int64
-	Elem vm.Type
+	Len  int64   // The length of the array
+	Elem vm.Type // The type of the array elements
 }
 
 // Two array types are identical if they have identical element types and the same array length.
 
+// NewArrayType creates a new array type with the specified length and element type.
 func NewArrayType(len int64, elem vm.Type) *ArrayType {
 	ts, ok := arrayTypes[len]
 	if !ok {
@@ -44,11 +49,33 @@ func NewArrayType(len int64, elem vm.Type) *ArrayType {
 
 // Type interface //////////////////////////////////////////////////////////////
 
-func (t *ArrayType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
-func (t *ArrayType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
-func (t *ArrayType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
-func (t *ArrayType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
-func (t *ArrayType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
-func (t *ArrayType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
-func (t *ArrayType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
-func (t *ArrayType) String() string                   { panic("NOT IMPLEMENTED") }
+// Compat returns whether this type is compatible with another type.
+func (t *ArrayType) Compat(o vm.Type, conv bool) bool {
+	t2, ok := o.Lit().(*ArrayType)
+	if !ok {
+		return false
+	}
+	return t.Len == t2.Len && t.Elem.Compat(t2.Elem, conv)
+}
+
+// Lit returns this type's literal.
+func (t *ArrayType) Lit() vm.Type {
+	return t
+}
+
+// Zero returns a new zero value of this type.
+func (t *ArrayType) Zero() vm.Value {
+	res := values.ArrayV(make([]vm.Value, t.Len))
+	// TODO: It's unfortunate that each element is separately heap allocated.
+	// We could add ZeroArray to everything, though that doesn't help with multidimensional arrays.
+	// Or we could do something unsafe.  We'll have this same problem with structs.
+	for i := int64(0); i < t.Len; i++ {
+		res[i] = t.Elem.Zero()
+	}
+	return &res
+}
+
+// String returns the string representation of this type.
+func (t *ArrayType) String() string {
+	return "[]" + t.Elem.String()
+}

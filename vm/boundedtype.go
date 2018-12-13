@@ -16,8 +16,9 @@ package vm
 
 import "math/big"
 
+// BoundedType represents a numeric type with boundaries on its value.
 type BoundedType interface {
 	Type
-	MinVal() *big.Rat // minVal returns the smallest value of this type.
-	MaxVal() *big.Rat // maxVal returns the largest value of this type.
+	MinVal() *big.Rat // MinVal returns the smallest value of this type.
+	MaxVal() *big.Rat // MaxVal returns the largest value of this type.
 }

@@ -14,19 +14,41 @@
 
 package types
 
-import "github.com/xav/go-script/vm"
+import (
+	"github.com/xav/go-script/values"
+	"github.com/xav/go-script/vm"
+)
 
+// BoolType is used to represent boolean types (https://golang.org/ref/spec#Boolean_types).
 type BoolType struct {
 	commonType
 }
 
 // Type interface //////////////////////////////////////////////////////////////
 
-func (t *BoolType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
-func (t *BoolType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
-func (t *BoolType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
-func (t *BoolType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
-func (t *BoolType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
-func (t *BoolType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
-func (t *BoolType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
-func (t *BoolType) String() string                   { panic("NOT IMPLEMENTED") }
+// Compat returns whether this type is compatible with another type.
+func (t *BoolType) Compat(o vm.Type, conv bool) bool {
+	_, ok := o.Lit().(*BoolType)
+	return ok
+}
+
+// Lit returns this type's literal.
+func (t *BoolType) Lit() vm.Type {
+	return t
+}
+
+// IsBoolean returns true if this is a boolean type.
+func (t *BoolType) IsBoolean() bool {
+	return true
+}
+
+// Zero returns a new zero value of this type.
+func (t *BoolType) Zero() vm.Value {
+	res := values.BoolV(false)
+	return &res
+}
+
+// String returns the string representation of this type.
+func (t *BoolType) String() string {
+	return "<bool>"
+}

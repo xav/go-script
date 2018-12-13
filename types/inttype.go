@@ -15,16 +15,81 @@
 package types
 
 import (
+	"math/big"
+	"unsafe"
+
 	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
 )
 
-type IntType struct {
-	commonType
-	Bits uint // 0 for architecture-dependent types
-	Name string
+var (
+	minIntVal   *big.Rat
+	minInt8Val  *big.Rat
+	minInt16Val *big.Rat
+	minInt32Val *big.Rat
+	minInt64Val *big.Rat
+	maxIntVal   *big.Rat
+	maxInt8Val  *big.Rat
+	maxInt16Val *big.Rat
+	maxInt32Val *big.Rat
+	maxInt64Val *big.Rat
+)
+
+func initIntMinMax() {
+	intBits := uint(8 * unsafe.Sizeof(int(0)))
+	one := big.NewInt(1)
+
+	num := big.NewInt(-1)
+	num.Lsh(num, intBits-1)
+	minIntVal = new(big.Rat).SetInt(num)
+
+	num.SetInt64(-1)
+	num.Lsh(num, 7)
+	minInt8Val = new(big.Rat).SetInt(num)
+
+	num.Lsh(num, 8)
+	minInt16Val = new(big.Rat).SetInt(num)
+
+	num.Lsh(num, 8)
+	minInt32Val = new(big.Rat).SetInt(num)
+
+	num.Lsh(num, 8)
+	minInt64Val = new(big.Rat).SetInt(num)
+
+	num.SetInt64(1)
+	num.Lsh(num, intBits-1)
+	num.Sub(num, one)
+	maxIntVal = new(big.Rat).SetInt(num)
+
+	num.SetInt64(1)
+	num.Lsh(num, 7)
+	num.Sub(num, one)
+	maxInt8Val = new(big.Rat).SetInt(num)
+
+	num.SetInt64(1)
+	num.Lsh(num, 15)
+	num.Sub(num, one)
+	maxInt16Val = new(big.Rat).SetInt(num)
+
+	num.SetInt64(1)
+	num.Lsh(num, 31)
+	num.Sub(num, one)
+	maxInt32Val = new(big.Rat).SetInt(num)
+
+	num.SetInt64(1)
+	num.Lsh(num, 63)
+	num.Sub(num, one)
+	maxInt64Val = new(big.Rat).SetInt(num)
 }
 
+// IntType is used to represent signed integer number types (https://golang.org/ref/spec#Numeric_types).
+type IntType struct {
+	commonType
+	Bits uint   // 0 for architecture-dependent types
+	Name string // The name of the int type
+}
+
+// MakeIntType creates a new integer type of the specified bit size.
 func MakeIntType(bits uint, name string) *IntType {
 	t := IntType{commonType{}, bits, name}
 	return &t
@@ -68,11 +133,49 @@ func (t *IntType) Zero() vm.Value {
 		res := values.IntV(0)
 		return &res
 	}
-	logger.Panic().Msg("unexpected int bit count")
+	logger.Panic().Msgf("unexpected int bit count: %d", t.Bits)
 	panic("unreachable")
 }
 
 // String returns the string representation of this type.
 func (t *IntType) String() string {
 	return "<" + t.Name + ">"
+}
+
+// BoundedType interface ///////////////////////////////////////////////////////
+
+// MinVal returns the smallest value of this type.
+func (t *IntType) MinVal() *big.Rat {
+	switch t.Bits {
+	case 8:
+		return minInt8Val
+	case 16:
+		return minInt16Val
+	case 32:
+		return minInt32Val
+	case 64:
+		return minInt64Val
+	case 0:
+		return minIntVal
+	}
+	logger.Panic().Msgf("unexpected int bit count: %d", t.Bits)
+	panic("unreachable")
+}
+
+// MaxVal returns the largest value of this type.
+func (t *IntType) MaxVal() *big.Rat {
+	switch t.Bits {
+	case 8:
+		return maxInt8Val
+	case 16:
+		return maxInt16Val
+	case 32:
+		return maxInt32Val
+	case 64:
+		return maxInt64Val
+	case 0:
+		return maxIntVal
+	}
+	logger.Panic().Msgf("unexpected int bit count: %d", t.Bits)
+	panic("unreachable")
 }
