@@ -16,6 +16,7 @@ package types
 
 import "github.com/xav/go-script/vm"
 
+// ChanType is used to represent channel types (https://golang.org/ref/spec#Channel_types).
 type ChanType struct {
 	commonType
 }

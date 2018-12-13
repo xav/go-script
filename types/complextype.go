@@ -16,6 +16,7 @@ package types
 
 import "github.com/xav/go-script/vm"
 
+// ComplexType is used to represent complex numbers types (https://golang.org/ref/spec#Numeric_types).
 type ComplexType struct {
 	commonType
 	Bits uint // 0 for architecture-dependent type
