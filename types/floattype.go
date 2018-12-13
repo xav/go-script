@@ -93,6 +93,7 @@ func (t *FloatType) String() string {
 
 // BoundedType interface ///////////////////////////////////////////////////////
 
+// MinVal returns the smallest value of this type.
 func (t *FloatType) MinVal() *big.Rat {
 	switch t.Bits {
 	case 32:
@@ -104,6 +105,7 @@ func (t *FloatType) MinVal() *big.Rat {
 	panic("unreachable")
 }
 
+// MaxVal returns the largest value of this type.
 func (t *FloatType) MaxVal() *big.Rat {
 	switch t.Bits {
 	case 32:
