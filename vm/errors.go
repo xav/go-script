@@ -18,6 +18,15 @@ import (
 	"fmt"
 )
 
+// DivByZeroError is used to abort a thread when a division by zero occurs.
+type DivByZeroError struct{}
+
+func (DivByZeroError) Error() string {
+	return "divide by zero"
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // NilPointerError is used to abort a thread when a nil pointer is dereferenced.
 type NilPointerError struct{}
 

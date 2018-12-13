@@ -664,7 +664,7 @@ func (xi *ExprInfo) compileBinaryExpr(op token.Token, l, r *Expr) *Expr {
 		expr.genBinOpLogOr(l, r)
 
 	case token.ARROW: // <-
-		panic("Binary op <- not implemented")
+		expr.genBinSend(l, r)
 
 	case token.EQL: // ==
 		expr.genBinOpEql(l, r)
@@ -1618,8 +1618,9 @@ func (xi *ExprInfo) compileUnaryExpr(op token.Token, v *Expr) *Expr {
 	case token.XOR: // ^
 		expr.genUnaryOpXor(v)
 	case token.AND: // &
-		vf := v.evalAddr
-		expr.eval = func(t *vm.Thread) vm.Value { return vf(t) }
+		expr.genUnaryOpAddr(v)
+	case token.ARROW: // <-
+		expr.genUnaryOpReceive(v)
 
 	default:
 		logger.Panic().
