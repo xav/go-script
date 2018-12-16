@@ -19,6 +19,7 @@ import (
 	"go/ast"
 	"go/token"
 
+	"github.com/xav/go-script/builtins"
 	"github.com/xav/go-script/context"
 	"github.com/xav/go-script/types"
 	"github.com/xav/go-script/vm"
@@ -82,7 +83,68 @@ func (tc *typeCompiler) compileType(x ast.Expr, allowRec bool) vm.Type {
 }
 
 func (tc *typeCompiler) compileArrayType(x *ast.ArrayType, allowRec bool) vm.Type {
-	panic("NOT IMPLEMENTED")
+	// Compile element type
+	elem := tc.compileType(x.Elt, allowRec)
+
+	// Compile length expression
+	if x.Len == nil {
+		if elem == nil {
+			return nil
+		}
+		return types.NewSliceType(elem)
+	}
+
+	if _, ok := x.Len.(*ast.Ellipsis); ok {
+		tc.errorAt(x.Len.Pos(), "... array initializers not implemented")
+		return nil
+	}
+
+	l, ok := tc.compileArrayLen(tc.block, x.Len)
+	if !ok {
+		return nil
+	}
+
+	if l < 0 {
+		tc.errorAt(x.Len.Pos(), "array length must be non-negative")
+		return nil
+	}
+	if elem == nil {
+		return nil
+	}
+
+	return types.NewArrayType(l, elem)
+}
+
+func (pc *Compiler) compileArrayLen(b *context.Block, expr ast.Expr) (int64, bool) {
+	lenExpr := pc.CompileExpr(b, true, expr)
+	if lenExpr == nil {
+		return 0, false
+	}
+
+	if lenExpr.ExprType.IsIdeal() {
+		lenExpr = lenExpr.resolveIdeal(builtins.IntType)
+		if lenExpr == nil {
+			return 0, false
+		}
+	}
+
+	if !lenExpr.ExprType.IsInteger() {
+		pc.errorAt(expr.Pos(), "array size must be an integer")
+		return 0, false
+	}
+
+	switch lenExpr.ExprType.Lit().(type) {
+	case *types.IntType:
+		return lenExpr.asInt()(nil), true
+	case *types.UintType:
+		return int64(lenExpr.asUint()(nil)), true
+	}
+
+	logger.Panic().
+		Str("type", fmt.Sprintf("%T", lenExpr.ExprType)).
+		Msg("unexpected integer type")
+
+	return 0, false
 }
 
 func (tc *typeCompiler) compileChanType(x *ast.ChanType, allowRec bool) vm.Type {
