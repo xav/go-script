@@ -8,5 +8,6 @@
 # Test binary, build with `go test -c`
 *.test
 
-# IntelliJ/GoLand
+# IDEs
+.vscode
 .idea
