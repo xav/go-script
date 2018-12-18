@@ -33,5 +33,21 @@ type InterfaceV struct {
 	Interface
 }
 
-func (v *InterfaceV) String() string                  { panic("NOT IMPLEMENTED") }
-func (v *InterfaceV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
+func (v *InterfaceV) String() string {
+	if v.Type == nil || v.Value == nil {
+		return "<nil>"
+	}
+	return v.Value.String()
+}
+
+func (v *InterfaceV) Assign(t *vm.Thread, o vm.Value) {
+	v.Interface = o.(InterfaceValue).Get(t)
+}
+
+func (v *InterfaceV) Get(*vm.Thread) Interface {
+	return v.Interface
+}
+
+func (v *InterfaceV) Set(t *vm.Thread, x Interface) {
+	v.Interface = x
+}

@@ -46,6 +46,7 @@ type FuncType struct {
 	Builtin  string
 }
 
+// NewFuncType creates a new function type with the specified input and output types.
 func NewFuncType(in []vm.Type, variadic bool, out []vm.Type) *FuncType {
 	inMap := funcTypes
 	if variadic {

@@ -205,7 +205,56 @@ func (tc *typeCompiler) compileIdent(x *ast.Ident, allowRec bool) vm.Type {
 }
 
 func (tc *typeCompiler) compileInterfaceType(x *ast.InterfaceType, allowRec bool) *types.InterfaceType {
-	panic("NOT IMPLEMENTED")
+	ts, names, poss, bad := tc.compileFields(x.Methods, allowRec)
+
+	methods := make(map[string]*types.FuncType, len(ts))
+	nameSet := make(map[string]token.Pos, len(ts))
+	embeds := make([]*types.InterfaceType, len(ts))
+
+	var ne int
+	for i := range ts {
+		if ts[i] == nil {
+			continue
+		}
+
+		if names[i] != nil {
+			name := names[i].Name
+			methods[name] = ts[i].(*types.FuncType)
+
+			if prev, ok := nameSet[name]; ok {
+				tc.errorAt(poss[i], "method %s redeclared\n\tprevious declaration at %s", name, tc.FSet.Position(prev))
+				bad = true
+				continue
+			}
+			nameSet[name] = poss[i]
+		} else {
+			// Embedded interface
+			it, ok := ts[i].Lit().(*types.InterfaceType)
+			if !ok {
+				tc.errorAt(poss[i], "embedded type must be an interface")
+				bad = true
+				continue
+			}
+			embeds[ne] = it
+			ne++
+			for k := range it.Methods {
+				if prev, ok := nameSet[k]; ok {
+					tc.errorAt(poss[i], "method %s redeclared\n\tprevious declaration at %s", k, tc.FSet.Position(prev))
+					bad = true
+					continue
+				}
+				nameSet[k] = poss[i]
+			}
+		}
+	}
+
+	if bad {
+		return nil
+	}
+
+	embeds = embeds[0:ne]
+
+	return types.NewInterfaceType(methods, embeds)
 }
 
 func (tc *typeCompiler) compileMapType(x *ast.MapType) vm.Type {
