@@ -25,9 +25,24 @@ type PtrValue interface {
 // ptr /////////////////////////////////////////////////////////////////////////
 
 type PtrV struct {
-	// nil if the pointer is nil
-	Target vm.Value
+	Target vm.Value // nil if the pointer is nil
 }
 
-func (v *PtrV) String() string                  { panic("NOT IMPLEMENTED") }
-func (v *PtrV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
+func (v *PtrV) String() string {
+	if v.Target == nil {
+		return "<nil>"
+	}
+	return "&" + v.Target.String()
+}
+
+func (v *PtrV) Assign(t *vm.Thread, o vm.Value) {
+	v.Target = o.(PtrValue).Get(t)
+}
+
+func (v *PtrV) Get(*vm.Thread) vm.Value {
+	return v.Target
+}
+
+func (v *PtrV) Set(t *vm.Thread, x vm.Value) {
+	v.Target = x
+}

@@ -281,7 +281,11 @@ func (tc *typeCompiler) compileMapType(x *ast.MapType) vm.Type {
 }
 
 func (tc *typeCompiler) compilePtrType(x *ast.StarExpr) vm.Type {
-	panic("NOT IMPLEMENTED")
+	elem := tc.compileType(x.X, true)
+	if elem == nil {
+		return nil
+	}
+	return types.NewPtrType(elem)
 }
 
 func (tc *typeCompiler) compileStructType(x *ast.StructType, allowRec bool) vm.Type {

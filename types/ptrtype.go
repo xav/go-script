@@ -14,7 +14,10 @@
 
 package types
 
-import "github.com/xav/go-script/vm"
+import (
+	"github.com/xav/go-script/values"
+	"github.com/xav/go-script/vm"
+)
 
 var ptrTypes = make(map[vm.Type]*PtrType)
 
@@ -39,11 +42,26 @@ func NewPtrType(elem vm.Type) *PtrType {
 
 // Type interface //////////////////////////////////////////////////////////////
 
-func (t *PtrType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
-func (t *PtrType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
-func (t *PtrType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
-func (t *PtrType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
-func (t *PtrType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
-func (t *PtrType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
-func (t *PtrType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
-func (t *PtrType) String() string                   { panic("NOT IMPLEMENTED") }
+// Compat returns whether this type is compatible with another type.
+func (t *PtrType) Compat(o vm.Type, conv bool) bool {
+	t2, ok := o.Lit().(*PtrType)
+	if !ok {
+		return false
+	}
+	return t.Elem.Compat(t2.Elem, conv)
+}
+
+// Lit returns this type's literal.
+func (t *PtrType) Lit() vm.Type {
+	return t
+}
+
+// Zero returns a new zero value of this type.
+func (t *PtrType) Zero() vm.Value {
+	return &values.PtrV{Target: nil}
+}
+
+// String returns the string representation of this type.
+func (t *PtrType) String() string {
+	return "*" + t.Elem.String()
+}
