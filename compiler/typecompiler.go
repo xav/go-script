@@ -280,16 +280,82 @@ func (tc *typeCompiler) compileMapType(x *ast.MapType) vm.Type {
 	return types.NewMapType(key, val)
 }
 
+func (tc *typeCompiler) compileStructType(x *ast.StructType, allowRec bool) vm.Type {
+	ts, names, poss, bad := tc.compileFields(x.Fields, allowRec)
+
+	fields := make([]types.StructField, len(ts))
+	nameSet := make(map[string]token.Pos, len(ts))
+
+	for i := range fields {
+		// Compute field name and check anonymous fields
+		var name string
+		if names[i] != nil {
+			name = names[i].Name
+		} else {
+			if ts[i] == nil {
+				continue
+			}
+
+			var nt *types.NamedType
+			// For anonymous fields, the unqualified type name acts as the field identifier.
+			switch t := ts[i].(type) {
+			case *types.NamedType:
+				name = t.Name
+				nt = t
+			case *types.PtrType:
+				switch t := t.Elem.(type) {
+				case *types.NamedType:
+					name = t.Name
+					nt = t
+				}
+			}
+
+			// [An anonymous field] must be specified as a type name T or as a pointer to a type name
+			// *T, and T itself, may not be a pointer or interface type.
+			if nt == nil {
+				tc.errorAt(poss[i], "embedded type must T or *T, where T is a named type")
+				bad = true
+				continue
+			}
+
+			// The check for embedded pointer types must be deferred because of things like type T *struct { T }
+			lateCheck := tc.lateCheck
+			tc.lateCheck = func() bool {
+				if _, ok := nt.Lit().(*types.PtrType); ok {
+					tc.errorAt(poss[i], "embedded type %v is a pointer type", nt)
+					return false
+				}
+				return lateCheck()
+			}
+		}
+
+		// Check name uniqueness
+		if prev, ok := nameSet[name]; ok {
+			tc.errorAt(poss[i], "field %s redeclared\n\tprevious declaration at %s", name, tc.FSet.Position(prev))
+			bad = true
+			continue
+		}
+		nameSet[name] = poss[i]
+
+		// Create field
+		fields[i].Name = name
+		fields[i].Type = ts[i]
+		fields[i].Anonymous = (names[i] == nil)
+	}
+
+	if bad {
+		return nil
+	}
+
+	return types.NewStructType(fields)
+}
+
 func (tc *typeCompiler) compilePtrType(x *ast.StarExpr) vm.Type {
 	elem := tc.compileType(x.X, true)
 	if elem == nil {
 		return nil
 	}
 	return types.NewPtrType(elem)
-}
-
-func (tc *typeCompiler) compileStructType(x *ast.StructType, allowRec bool) vm.Type {
-	panic("NOT IMPLEMENTED")
 }
 
 func (tc *typeCompiler) compileFields(fields *ast.FieldList, allowRec bool) ([]vm.Type, []*ast.Ident, []token.Pos, bool) {

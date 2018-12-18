@@ -28,5 +28,29 @@ type StructValue interface {
 
 type StructV []vm.Value
 
-func (v *StructV) String() string                  { panic("NOT IMPLEMENTED") }
-func (v *StructV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
+func (v *StructV) String() string {
+	res := "{"
+	for i, v := range *v {
+		if i > 0 {
+			res += ", "
+		}
+		res += v.String()
+	}
+	return res + "}"
+}
+
+func (v *StructV) Assign(t *vm.Thread, o vm.Value) {
+	oa := o.(StructValue)
+	l := len(*v)
+	for i := 0; i < l; i++ {
+		(*v)[i].Assign(t, oa.Field(t, i))
+	}
+}
+
+func (v *StructV) Get(*vm.Thread) StructValue {
+	return v
+}
+
+func (v *StructV) Field(t *vm.Thread, i int) vm.Value {
+	return (*v)[i]
+}
