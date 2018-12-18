@@ -258,7 +258,26 @@ func (tc *typeCompiler) compileInterfaceType(x *ast.InterfaceType, allowRec bool
 }
 
 func (tc *typeCompiler) compileMapType(x *ast.MapType) vm.Type {
-	panic("NOT IMPLEMENTED")
+	key := tc.compileType(x.Key, true)
+	val := tc.compileType(x.Value, true)
+	if key == nil || val == nil {
+		return nil
+	}
+
+	// The Map types section of the specs explicitly lists all types that can be map keys except for function types.
+	switch key.Lit().(type) {
+	case *types.StructType:
+		tc.errorAt(x.Pos(), "map key cannot be a struct type")
+		return nil
+	case *types.ArrayType:
+		tc.errorAt(x.Pos(), "map key cannot be an array type")
+		return nil
+	case *types.SliceType:
+		tc.errorAt(x.Pos(), "map key cannot be a slice type")
+		return nil
+	}
+
+	return types.NewMapType(key, val)
 }
 
 func (tc *typeCompiler) compilePtrType(x *ast.StarExpr) vm.Type {

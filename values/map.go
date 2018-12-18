@@ -14,7 +14,11 @@
 
 package values
 
-import "github.com/xav/go-script/vm"
+import (
+	"fmt"
+
+	"github.com/xav/go-script/vm"
+)
 
 type Map interface {
 	Len(*vm.Thread) int64
@@ -30,9 +34,36 @@ type MapValue interface {
 }
 
 // map /////////////////////////////////////////////////////////////////////////
+
 type MapV struct {
 	Target Map
 }
 
-func (v *MapV) String() string                  { panic("NOT IMPLEMENTED") }
-func (v *MapV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
+func (v *MapV) String() string {
+	if v.Target == nil {
+		return "<nil>"
+	}
+	res := "map["
+	i := 0
+	v.Target.Iter(func(key interface{}, val vm.Value) bool {
+		if i > 0 {
+			res += ", "
+		}
+		i++
+		res += fmt.Sprint(key) + ":" + val.String()
+		return true
+	})
+	return res + "]"
+}
+
+func (v *MapV) Assign(t *vm.Thread, o vm.Value) {
+	v.Target = o.(MapValue).Get(t)
+}
+
+func (v *MapV) Get(*vm.Thread) Map {
+	return v.Target
+}
+
+func (v *MapV) Set(t *vm.Thread, x Map) {
+	v.Target = x
+}
