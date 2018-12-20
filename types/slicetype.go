@@ -14,7 +14,10 @@
 
 package types
 
-import "github.com/xav/go-script/vm"
+import (
+	"github.com/xav/go-script/values"
+	"github.com/xav/go-script/vm"
+)
 
 var sliceTypes = make(map[vm.Type]*SliceType)
 
@@ -23,6 +26,7 @@ type SliceType struct {
 	Elem vm.Type
 }
 
+// NewSliceType creates a new slice type with the specified element type.
 func NewSliceType(elem vm.Type) *SliceType {
 	t, ok := sliceTypes[elem]
 	if !ok {
@@ -37,11 +41,28 @@ func NewSliceType(elem vm.Type) *SliceType {
 
 // Type interface //////////////////////////////////////////////////////////////
 
-func (t *SliceType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
-func (t *SliceType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
-func (t *SliceType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
-func (t *SliceType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
-func (t *SliceType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
-func (t *SliceType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
-func (t *SliceType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
-func (t *SliceType) String() string                   { panic("NOT IMPLEMENTED") }
+// Compat returns whether this type is compatible with another type.
+func (t *SliceType) Compat(o vm.Type, conv bool) bool {
+	t2, ok := o.Lit().(*SliceType)
+	if !ok {
+		return false
+	}
+	return t.Elem.Compat(t2.Elem, conv)
+}
+
+// Lit returns this type's literal.
+func (t *SliceType) Lit() vm.Type {
+	return t
+}
+
+// Zero returns a new zero value of this type.
+func (t *SliceType) Zero() vm.Value {
+	// The value of an uninitialized slice is nil.
+	// The length and capacity of a nil slice are 0.
+	return &values.SliceV{Slice: values.Slice{Base: nil, Len: 0, Cap: 0}}
+}
+
+// String returns the string representation of this type.
+func (t *SliceType) String() string {
+	return "[]" + t.Elem.String()
+}

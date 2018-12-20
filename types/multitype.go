@@ -15,6 +15,7 @@
 package types
 
 import (
+	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
 )
 
@@ -44,6 +45,7 @@ func NewMultiType(elems []vm.Type) *MultiType {
 
 // Type interface //////////////////////////////////////////////////////////////
 
+// Compat returns whether this type is compatible with another type.
 func (t *MultiType) Compat(o vm.Type, conv bool) bool {
 	t2, ok := o.Lit().(*MultiType)
 	if !ok {
@@ -60,14 +62,24 @@ func (t *MultiType) Compat(o vm.Type, conv bool) bool {
 	return true
 }
 
+// Lit returns this type's literal.
 func (t *MultiType) Lit() vm.Type {
 	return t
 }
 
-func (t *MultiType) String() string {
-	panic("NOT IMPLEMENTED")
+// Zero returns a new zero value of this type.
+func (t *MultiType) Zero() vm.Value {
+	res := make([]vm.Value, len(t.Elems))
+	for i, t := range t.Elems {
+		res[i] = t.Zero()
+	}
+	return values.MultiV(res)
 }
 
-func (t *MultiType) Zero() vm.Value {
-	panic("NOT IMPLEMENTED")
+// String returns the string representation of this type.
+func (t *MultiType) String() string {
+	if len(t.Elems) == 0 {
+		return "<none>"
+	}
+	return typeListString(t.Elems, nil)
 }

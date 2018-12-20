@@ -67,27 +67,34 @@ func (t *NamedType) Lit() vm.Type {
 	return t.Def.Lit()
 }
 
+// IsBoolean returns true if this is a boolean type.
 func (t *NamedType) IsBoolean() bool {
 	return t.Def.IsBoolean()
 }
 
+// IsInteger returns true if this is an integer type.
 func (t *NamedType) IsInteger() bool {
 	return t.Def.IsInteger()
 }
+
+// IsFloat returns true if this is a floating type.
 func (t *NamedType) IsFloat() bool {
 	return t.Def.IsFloat()
 }
 
+// IsIdeal returns true if this represents an ideal value.
 func (t *NamedType) IsIdeal() bool {
 	return false
 }
 
-func (t *NamedType) String() string {
-	return t.Name
-}
-
+// Zero returns a new zero value of this type.
 func (t *NamedType) Zero() vm.Value {
 	return t.Def.Zero()
+}
+
+// String returns the string representation of this type.
+func (t *NamedType) String() string {
+	return t.Name
 }
 
 ////////////////////////////////////////////////////////////////////////////////

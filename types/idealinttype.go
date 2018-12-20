@@ -17,6 +17,7 @@ package types
 import (
 	"math/big"
 
+	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
 )
 
@@ -31,11 +32,33 @@ type IdealIntType struct {
 
 // Type interface //////////////////////////////////////////////////////////////
 
-func (t *IdealIntType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
-func (t *IdealIntType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
-func (t *IdealIntType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
-func (t *IdealIntType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
-func (t *IdealIntType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
-func (t *IdealIntType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
-func (t *IdealIntType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
-func (t *IdealIntType) String() string                   { panic("NOT IMPLEMENTED") }
+// Compat returns whether this type is compatible with another type.
+func (t *IdealIntType) Compat(o vm.Type, conv bool) bool {
+	_, ok := o.Lit().(*IdealIntType)
+	return ok
+}
+
+// Lit returns this type's literal.
+func (t *IdealIntType) Lit() vm.Type {
+	return t
+}
+
+// IsInteger returns true if this is an integer type.
+func (t *IdealIntType) IsInteger() bool {
+	return true
+}
+
+// IsIdeal returns true if this represents an ideal value.
+func (t *IdealIntType) IsIdeal() bool {
+	return true
+}
+
+// Zero returns a new zero value of this type.
+func (t *IdealIntType) Zero() vm.Value {
+	return &values.IdealIntV{V: idealZero}
+}
+
+// String returns the string representation of this type.
+func (t *IdealIntType) String() string {
+	return "ideal integer"
+}

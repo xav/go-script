@@ -14,7 +14,10 @@
 
 package types
 
-import "github.com/xav/go-script/vm"
+import (
+	"github.com/xav/go-script/values"
+	"github.com/xav/go-script/vm"
+)
 
 type StringType struct {
 	commonType
@@ -22,11 +25,24 @@ type StringType struct {
 
 // Type interface //////////////////////////////////////////////////////////////
 
-func (t *StringType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
-func (t *StringType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
-func (t *StringType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
-func (t *StringType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
-func (t *StringType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
-func (t *StringType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
-func (t *StringType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
-func (t *StringType) String() string                   { panic("NOT IMPLEMENTED") }
+// Compat returns whether this type is compatible with another type.
+func (t *StringType) Compat(o vm.Type, conv bool) bool {
+	_, ok := o.Lit().(*StringType)
+	return ok
+}
+
+// Lit returns this type's literal.
+func (t *StringType) Lit() vm.Type {
+	return t
+}
+
+// Zero returns a new zero value of this type.
+func (t *StringType) Zero() vm.Value {
+	res := values.StringV("")
+	return &res
+}
+
+// String returns the string representation of this type.
+func (t *StringType) String() string {
+	return "<string>"
+}

@@ -28,6 +28,7 @@ type PtrType struct {
 
 // Two pointer types are identical if they have identical base types.
 
+// NewPtrType creates a new ptr type with the specified target type.
 func NewPtrType(elem vm.Type) *PtrType {
 	t, ok := ptrTypes[elem]
 	if !ok {

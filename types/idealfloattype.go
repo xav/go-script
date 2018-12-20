@@ -14,7 +14,12 @@
 
 package types
 
-import "github.com/xav/go-script/vm"
+import (
+	"math/big"
+
+	"github.com/xav/go-script/values"
+	"github.com/xav/go-script/vm"
+)
 
 type IdealFloatType struct {
 	commonType
@@ -22,11 +27,33 @@ type IdealFloatType struct {
 
 // Type interface //////////////////////////////////////////////////////////////
 
-func (t *IdealFloatType) Compat(o vm.Type, conv bool) bool { panic("NOT IMPLEMENTED") }
-func (t *IdealFloatType) Lit() vm.Type                     { panic("NOT IMPLEMENTED") }
-func (t *IdealFloatType) IsBoolean() bool                  { panic("NOT IMPLEMENTED") }
-func (t *IdealFloatType) IsInteger() bool                  { panic("NOT IMPLEMENTED") }
-func (t *IdealFloatType) IsFloat() bool                    { panic("NOT IMPLEMENTED") }
-func (t *IdealFloatType) IsIdeal() bool                    { panic("NOT IMPLEMENTED") }
-func (t *IdealFloatType) Zero() vm.Value                   { panic("NOT IMPLEMENTED") }
-func (t *IdealFloatType) String() string                   { panic("NOT IMPLEMENTED") }
+// Compat returns whether this type is compatible with another type.
+func (t *IdealFloatType) Compat(o vm.Type, conv bool) bool {
+	_, ok := o.Lit().(*IdealFloatType)
+	return ok
+}
+
+// Lit returns this type's literal.
+func (t *IdealFloatType) Lit() vm.Type {
+	return t
+}
+
+// IsFloat returns true if this is a floating type.
+func (t *IdealFloatType) IsFloat() bool {
+	return true
+}
+
+// IsIdeal returns true if this represents an ideal value.
+func (t *IdealFloatType) IsIdeal() bool {
+	return true
+}
+
+// Zero returns a new zero value of this type.
+func (t *IdealFloatType) Zero() vm.Value {
+	return &values.IdealFloatV{V: big.NewRat(0, 1)}
+}
+
+// String returns the string representation of this type.
+func (t *IdealFloatType) String() string {
+	return "ideal float"
+}

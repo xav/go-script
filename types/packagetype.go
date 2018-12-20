@@ -31,6 +31,7 @@ type PackageField struct {
 	Type vm.Type
 }
 
+// NewPackageType creates a new package import type.
 func NewPackageType(path string, fields []PackageField) *PackageType {
 	t, ok := packageTypes[path]
 	if !ok {
@@ -42,21 +43,25 @@ func NewPackageType(path string, fields []PackageField) *PackageType {
 
 // Type interface //////////////////////////////////////////////////////////////
 
+// Compat returns whether this type is compatible with another type.
 func (p *PackageType) Compat(o vm.Type, conv bool) bool {
 	return false
 }
 
+// Lit returns this type's literal.
 func (p *PackageType) Lit() vm.Type {
 	return p
 }
 
-func (p *PackageType) String() string {
-	return "<package>"
-}
-
+// Zero returns a new zero value of this type.
 func (p *PackageType) Zero() vm.Value {
 	return &values.PackageV{
 		Name:   "",
 		Idents: make([]vm.Value, 0),
 	}
+}
+
+// String returns the string representation of this type.
+func (p *PackageType) String() string {
+	return "<package>"
 }
