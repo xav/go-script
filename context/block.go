@@ -83,9 +83,9 @@ func (b *Block) Exit() {
 
 // DefineVar creates a new variable definition and allocate it in the current scope,
 // or returns the existing definition if the symbol was already defined.
-func (b *Block) DefineVar(name string, pos token.Pos, t vm.Type) (*types.Variable, Def) {
+func (b *Block) DefineVar(name string, pos token.Pos, t vm.Type) (*Variable, Def) {
 	if prev, ok := b.Defs[name]; ok {
-		if _, ok := prev.(*types.Variable); ok {
+		if _, ok := prev.(*Variable); ok {
 			logger.Panic().
 				Str("symbol", name).
 				Msgf("symbol redeclaration with different primitives types (%+v -> Variable)", prev)
@@ -96,7 +96,7 @@ func (b *Block) DefineVar(name string, pos token.Pos, t vm.Type) (*types.Variabl
 
 	b.checkChildExited()
 
-	v := &types.Variable{
+	v := &Variable{
 		VarPos: pos,
 		Index:  b.defineSlot(false),
 		Type:   t,
@@ -106,12 +106,12 @@ func (b *Block) DefineVar(name string, pos token.Pos, t vm.Type) (*types.Variabl
 }
 
 // DefineTemp allocates a anonymous slot in the current scope.
-func (b *Block) DefineTemp(t vm.Type) *types.Variable {
+func (b *Block) DefineTemp(t vm.Type) *Variable {
 	if b.Inner != nil && b.Inner.Scope == b.Scope {
 		logger.Panic().Msg("failed to exit child block before defining temp")
 	}
 
-	return &types.Variable{
+	return &Variable{
 		VarPos: token.NoPos,
 		Index:  b.defineSlot(true),
 		Type:   t,
@@ -133,12 +133,12 @@ func (b *Block) defineSlot(temp bool) int {
 }
 
 // DefineConst creates a new constant definition.
-func (b *Block) DefineConst(name string, pos token.Pos, t vm.Type, v vm.Value) (*types.Constant, Def) {
+func (b *Block) DefineConst(name string, pos token.Pos, t vm.Type, v vm.Value) (*Constant, Def) {
 	if prev, ok := b.Defs[name]; ok {
 		return nil, prev
 	}
 
-	c := &types.Constant{
+	c := &Constant{
 		ConstPos: pos,
 		Type:     t,
 		Value:    v,

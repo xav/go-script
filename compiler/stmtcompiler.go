@@ -315,7 +315,7 @@ func (sc *stmtCompiler) compileVarDecl(decl *ast.GenDecl) error {
 
 // Statement generation helpers ////////////////////////////////////////////////
 
-func (sc *stmtCompiler) defineVar(ident *ast.Ident, t vm.Type) *types.Variable {
+func (sc *stmtCompiler) defineVar(ident *ast.Ident, t vm.Type) *context.Variable {
 	v, prev := sc.Block.DefineVar(ident.Name, ident.Pos(), t)
 	if prev != nil {
 		if prev.Pos().IsValid() {

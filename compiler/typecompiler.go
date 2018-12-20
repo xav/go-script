@@ -176,10 +176,10 @@ func (tc *typeCompiler) compileIdent(x *ast.Ident, allowRec bool) vm.Type {
 	}
 
 	switch def := def.(type) {
-	case *types.Constant:
+	case *context.Constant:
 		tc.errorAt(x.Pos(), "constant %v used as type", x.Name)
 		return nil
-	case *types.Variable:
+	case *context.Variable:
 		tc.errorAt(x.Pos(), "variable %v used as type", x.Name)
 		return nil
 

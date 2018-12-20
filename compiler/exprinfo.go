@@ -360,7 +360,7 @@ func (xi *ExprInfo) compileFuncLit(decl *types.FuncDecl, fn func(*vm.Thread) val
 
 ////////////////////////////////////////////////////////////////////////////////
 
-func (xi *ExprInfo) compileGlobalVariable(v *types.Variable) *Expr {
+func (xi *ExprInfo) compileGlobalVariable(v *context.Variable) *Expr {
 	if v.Type == nil {
 		xi.SilentErrors++ // Placeholder definition from an earlier error
 		return nil
@@ -378,7 +378,7 @@ func (xi *ExprInfo) compileGlobalVariable(v *types.Variable) *Expr {
 	return expr
 }
 
-func (xi *ExprInfo) compileVariable(level int, v *types.Variable) *Expr {
+func (xi *ExprInfo) compileVariable(level int, v *context.Variable) *Expr {
 	if v.Type == nil {
 		xi.SilentErrors++ // Placeholder definition from an earlier error
 		return nil
@@ -418,10 +418,10 @@ func (xi *ExprInfo) compilePackageImport(name string, pkg *context.PkgIdent, con
 		var fty vm.Type
 		var fva vm.Value
 		switch vv := v.(type) {
-		case *types.Variable:
+		case *context.Variable:
 			fty = vv.Type
 			fva = vv.Init
-		case *types.Constant:
+		case *context.Constant:
 			fty = vv.Type
 			fva = vv.Value
 		case *types.NamedType:
@@ -1115,7 +1115,7 @@ func (xi *ExprInfo) compileIdent(b *context.Block, constant bool, callCtx bool, 
 	}
 
 	switch def := def.(type) {
-	case *types.Constant:
+	case *context.Constant:
 		expr := xi.newExpr(def.Type, "constant")
 		if ft, ok := def.Type.(*types.FuncType); ok && ft.Builtin != "" {
 			if !callCtx {
@@ -1127,7 +1127,7 @@ func (xi *ExprInfo) compileIdent(b *context.Block, constant bool, callCtx bool, 
 		}
 		return expr
 
-	case *types.Variable:
+	case *context.Variable:
 		if constant {
 			xi.error("variable %s used in constant expression", name)
 			return nil
