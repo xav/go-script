@@ -53,7 +53,49 @@ func NewFlowBuf(cb *CodeBuf) *FlowBuf {
 	}
 }
 
-// GotosObeyScopes returns true if no goto statement causes any variables to come
+// reachesEnd returns true if the end of f's code buffer can be reached from the given program counter.
+// Error reporting is the caller's responsibility.
+func (f *FlowBuf) reachesEnd(pc uint) bool {
+	endPC := f.cb.NextPC()
+	if pc > endPC {
+		logger.Panic().Msgf("Reached bad PC %d past end PC %d", pc, endPC)
+	}
+
+	for ; pc < endPC; pc++ {
+		ent, ok := f.ents[pc]
+		if !ok {
+			continue
+		}
+
+		if ent.visited {
+			return false
+		}
+		ent.visited = true
+
+		if ent.term {
+			return false
+		}
+
+		// If anything can reach the end, we can reach the end from pc.
+		for _, j := range ent.jumps {
+			if f.reachesEnd(*j) {
+				return true
+			}
+		}
+
+		// If the jump was conditional, we can reach the next
+		// PC, so try reaching the end from it.
+		if ent.cond {
+			continue
+		}
+
+		return false
+	}
+
+	return true
+}
+
+// gotosObeyScopes returns true if no goto statement causes any variables to come
 // into scope that were not in scope at the point of the goto.
 // Reports any errors using the specified compiler.
 func (f *FlowBuf) gotosObeyScopes(pc *Compiler) {

@@ -38,6 +38,16 @@ func (bc *BlockCompiler) CompileStmt(stmt ast.Stmt) {
 	sc.compile(stmt)
 }
 
+func (bc *BlockCompiler) compileStmts(block *ast.BlockStmt) {
+	if block == nil || block.List == nil {
+		return
+	}
+
+	for _, sub := range block.List {
+		bc.CompileStmt(sub)
+	}
+}
+
 func (bc *BlockCompiler) enterChild() *BlockCompiler {
 	block := bc.Block.EnterChild()
 	return &BlockCompiler{

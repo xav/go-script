@@ -87,7 +87,64 @@ func (cc *Compiler) compileFuncType(b *context.Block, typ *ast.FuncType) *types.
 }
 
 func (cc *Compiler) compileFunc(b *context.Block, decl *types.FuncDecl, body *ast.BlockStmt) func(*vm.Thread) values.Func {
-	panic("NOT IMPLEMENTED")
+	// Create body scope
+	// The scope of a parameter or result is the body of the corresponding function.
+	bodyScope := b.EnterChildScope()
+	defer bodyScope.Exit()
+
+	for i, t := range decl.Type.In {
+		if decl.InNames[i] != nil {
+			bodyScope.DefineVar(decl.InNames[i].Name, decl.InNames[i].Pos(), t)
+		} else {
+			bodyScope.DefineTemp(t)
+		}
+	}
+	for i, t := range decl.Type.Out {
+		if decl.OutNames[i] != nil {
+			bodyScope.DefineVar(decl.OutNames[i].Name, decl.OutNames[i].Pos(), t)
+		} else {
+			bodyScope.DefineTemp(t)
+		}
+	}
+
+	// Create block context
+	cb := NewCodeBuf()
+	fc := &FuncCompiler{
+		Compiler:     cc,
+		FnType:       decl.Type,
+		OutVarsNamed: len(decl.OutNames) > 0 && decl.OutNames[0] != nil,
+		CodeBuf:      cb,
+		Flow:         NewFlowBuf(cb),
+		Labels:       make(map[string]*Label),
+	}
+	bc := &BlockCompiler{
+		FuncCompiler: fc,
+		Block:        bodyScope.Block,
+	}
+
+	// Compile body
+	nerr := cc.NumError()
+	bc.compileStmts(body)
+	fc.CheckLabels()
+	if nerr != cc.NumError() {
+		return nil
+	}
+
+	// Check that the body returned if necessary.
+	if len(decl.Type.Out) > 0 && fc.Flow.reachesEnd(0) {
+		cc.errorAt(body.Rbrace, "function ends without a return statement")
+		return nil
+	}
+
+	code := fc.Get()
+	maxVars := bodyScope.MaxVars
+	return func(t *vm.Thread) values.Func {
+		return &vm.EvalFunc{
+			Outer:     t.Frame,
+			FrameSize: maxVars,
+			Code:      code,
+		}
+	}
 }
 
 // compileAssign compiles an assignment operation without the full generality of an assignCompiler.
