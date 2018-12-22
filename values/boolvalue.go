@@ -14,7 +14,11 @@
 
 package values
 
-import "github.com/xav/go-script/vm"
+import (
+	"fmt"
+
+	"github.com/xav/go-script/vm"
+)
 
 type BoolValue interface {
 	vm.Value
@@ -26,5 +30,18 @@ type BoolValue interface {
 
 type BoolV bool
 
-func (v *BoolV) String() string                  { panic("NOT IMPLEMENTED") }
-func (v *BoolV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
+func (v *BoolV) String() string {
+	return fmt.Sprint(*v)
+}
+
+func (v *BoolV) Assign(t *vm.Thread, o vm.Value) {
+	*v = BoolV(o.(BoolValue).Get(t))
+}
+
+func (v *BoolV) Get(*vm.Thread) bool {
+	return bool(*v)
+}
+
+func (v *BoolV) Set(t *vm.Thread, x bool) {
+	*v = BoolV(x)
+}

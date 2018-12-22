@@ -34,5 +34,21 @@ type SliceV struct {
 	Slice
 }
 
-func (v *SliceV) String() string                  { panic("NOT IMPLEMENTED") }
-func (v *SliceV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
+func (v *SliceV) String() string {
+	if v.Base == nil {
+		return "<nil>"
+	}
+	return v.Base.Sub(0, v.Len).String()
+}
+
+func (v *SliceV) Assign(t *vm.Thread, o vm.Value) {
+	v.Slice = o.(SliceValue).Get(t)
+}
+
+func (v *SliceV) Get(*vm.Thread) Slice {
+	return v.Slice
+}
+
+func (v *SliceV) Set(t *vm.Thread, x Slice) {
+	v.Slice = x
+}

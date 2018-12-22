@@ -14,7 +14,11 @@
 
 package values
 
-import "github.com/xav/go-script/vm"
+import (
+	"fmt"
+
+	"github.com/xav/go-script/vm"
+)
 
 type StringValue interface {
 	vm.Value
@@ -26,5 +30,18 @@ type StringValue interface {
 
 type StringV string
 
-func (v *StringV) String() string                  { panic("NOT IMPLEMENTED") }
-func (v *StringV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
+func (v *StringV) String() string {
+	return fmt.Sprint(*v)
+}
+
+func (v *StringV) Assign(t *vm.Thread, o vm.Value) {
+	*v = StringV(o.(StringValue).Get(t))
+}
+
+func (v *StringV) Get(*vm.Thread) string {
+	return string(*v)
+}
+
+func (v *StringV) Set(t *vm.Thread, x string) {
+	*v = StringV(x)
+}

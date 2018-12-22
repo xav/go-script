@@ -33,5 +33,18 @@ type FuncV struct {
 	Target Func
 }
 
-func (v *FuncV) String() string                  { panic("NOT IMPLEMENTED") }
-func (v *FuncV) Assign(t *vm.Thread, o vm.Value) { panic("NOT IMPLEMENTED") }
+func (v *FuncV) String() string {
+	return "func {...}"
+}
+
+func (v *FuncV) Assign(t *vm.Thread, o vm.Value) {
+	v.Target = o.(FuncValue).Get(t)
+}
+
+func (v *FuncV) Get(*vm.Thread) Func {
+	return v.Target
+}
+
+func (v *FuncV) Set(t *vm.Thread, x Func) {
+	v.Target = x
+}
