@@ -145,7 +145,7 @@ func (b *Block) DefineConst(name string, pos token.Pos, t vm.Type, v vm.Value) (
 	}
 	b.Defs[name] = c
 
-	return nil, c
+	return c, nil
 }
 
 // DefineType creates a user defined type.
