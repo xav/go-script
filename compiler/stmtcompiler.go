@@ -205,7 +205,20 @@ func (sc *stmtCompiler) compileGenDecl(gd *ast.GenDecl) {
 }
 
 func (sc *stmtCompiler) compileConstDecl(decl *ast.GenDecl) {
-	panic("NOT IMPLEMENTED")
+	for _, spec := range decl.Specs {
+		spec := spec.(*ast.ValueSpec)
+		if spec.Values == nil {
+			// Declaration without assignment, the parser should have caught that.
+			logger.Panic().Msg("missing constant value")
+		}
+
+		lhs := make([]ast.Expr, len(spec.Names))
+		for i, n := range spec.Names {
+			lhs[i] = n
+		}
+
+		sc.doConstAssign(lhs, spec.Values, decl.Tok, spec.Type)
+	}
 }
 
 func (sc *stmtCompiler) compileImportDecl(decl *ast.GenDecl) {
@@ -347,6 +360,117 @@ func (sc *stmtCompiler) definePkg(ident ast.Node, id, path string) *context.PkgI
 
 ////////////////////////////////////////////////////////////////////////////////
 
+func (sc *stmtCompiler) doConstAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.Token, declTypeExpr ast.Expr) {
+
+	//////////////////////////////////////
+	// Compile right side first so we have the types when compiling the left side and
+	// so we don't see definitions made on the left side.
+
+	rs := make([]*Expr, len(rhs))
+	for i, re := range rhs {
+		if !sc.checkConstExpr(re) {
+			sc.errorAt(sc.pos, "const initializer %s is not a constant", "TODO:Expr.String()")
+			continue
+		}
+		rs[i] = sc.CompileExpr(sc.Block, false, re)
+	}
+
+	//TODO: Check if we really need a assignCompiler
+	ac, _ := sc.checkAssign(sc.pos, rs, "const declaration", "value")
+
+	// If this is a definition and the LHS is larger than the RHS, we won't be able to produce
+	// the usual error message because we can't begin to infer the types of the LHS.
+	if (tok == token.DEFINE || tok == token.VAR) && len(lhs) > len(ac.rmt.Elems) {
+		sc.error("not enough values for definition")
+	}
+
+	//////////////////////////////////////
+	// Compile left side
+
+	// Compile left type if there is one
+	var declType vm.Type
+	if declTypeExpr != nil {
+		declType = sc.compileType(sc.Block, declTypeExpr)
+	}
+
+	for i, le := range lhs {
+		// Get the declaration  identifier and its type
+		var lt vm.Type
+		ident := le.(*ast.Ident)
+
+		// Compute the identifier's type from the RHS type.
+		switch {
+		case declTypeExpr != nil:
+			// We have a declaration type, use it.
+			// If declType is nil, we gave an error when we compiled it.
+			lt = declType
+
+		case i >= len(ac.rmt.Elems):
+			lt = nil // We already gave the "not enough" error above.
+		case ac.rmt.Elems[i] == nil:
+			lt = nil // We already gave the error when we compiled the RHS.
+
+		default:
+			lt = ac.rmt.Elems[i]
+		}
+
+		//////////////////////////////////////
+		// define the identifier
+
+		var v vm.Value
+		switch lt.Lit().(type) {
+		case *types.IdealFloatType:
+			v = &values.IdealFloatV{V: rs[i].asIdealFloat()()}
+		case *types.IdealIntType:
+			v = &values.IdealIntV{V: rs[i].asIdealInt()()}
+		default:
+			sc.errorAt(sc.pos, "const initializer is not a constant")
+			v = nil
+		}
+		_, prev := sc.Block.DefineConst(ident.Name, sc.pos, lt, v)
+		if prev != nil {
+			pos := prev.Pos()
+			if pos.IsValid() {
+				sc.errorAt(sc.pos, "identifier %s redeclared in this block\n\tprevious declaration at %s", ident.Name, sc.FSet.Position(pos))
+			} else {
+				sc.errorAt(sc.pos, "identifier %s redeclared in this block", ident.Name)
+			}
+		}
+	}
+}
+
+func (sc *stmtCompiler) checkConstExpr(x ast.Expr) bool {
+	switch x := x.(type) {
+	case *ast.BasicLit:
+		return true
+
+	case *ast.BinaryExpr:
+		// Check that both operands are constants
+		return sc.checkConstExpr(x.X) && sc.checkConstExpr(x.Y)
+	case *ast.ParenExpr:
+		// Check that the parenthesized expression is constant
+		return sc.checkConstExpr(x.X)
+	case *ast.UnaryExpr:
+		if x.Op == token.ARROW {
+			return false
+		}
+		return sc.checkConstExpr(x.X)
+
+	case *ast.Ident:
+		// check that the referenced ident is a constant
+		// TODO: Check that it is not a function
+		v := sc.Block.Defs[x.Name]
+		_, ok := v.(*context.Constant)
+		return ok
+
+	default:
+		// The rest of the expression types are incompatible with constants
+		return false
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 func (sc *stmtCompiler) doAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.Token, declTypeExpr ast.Expr) {
 	nerr := sc.NumError()
 
@@ -380,14 +504,14 @@ func (sc *stmtCompiler) doAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.Token
 		sc.error("not enough values for definition")
 	}
 
+	//////////////////////////////////////
+	// Compile left side
+
 	// Compile left type if there is one
 	var declType vm.Type
 	if declTypeExpr != nil {
 		declType = sc.compileType(sc.Block, declTypeExpr)
 	}
-
-	//////////////////////////////////////
-	// Compile left side
 
 	ls := make([]*Expr, len(lhs))
 	nDefs := 0

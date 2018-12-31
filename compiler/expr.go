@@ -22,6 +22,7 @@ import (
 	"github.com/xav/go-script/types"
 	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
+	"github.com/xav/horus/warden/vm/value"
 )
 
 // Expr is the result of compiling an expression.
@@ -191,8 +192,189 @@ func (x *Expr) derefArray() *Expr {
 // the requested evaluator has the wrong type.
 
 // asValue returns a closure around a Value, according to the type of the underlying expression
-func (x *Expr) asValue() func(t *vm.Thread) vm.Value      { panic("NOT IMPLEMENTED") }
-func (x *Expr) asInterface() func(*vm.Thread) interface{} { panic("NOT IMPLEMENTED") }
+func (x *Expr) asValue() func(t *vm.Thread) vm.Value {
+	var fct func(t *vm.Thread) vm.Value
+	switch ty := x.ExprType.Lit().(type) {
+	case *types.BoolType:
+		fct = func(t *vm.Thread) vm.Value {
+			b := values.BoolV(x.asBool()(t))
+			var val vm.Value = &b
+			return val
+		}
+	case *types.UintType:
+		v := x.asUint()
+		switch ty.Bits {
+		case 0:
+			switch ty.Ptr {
+			case true:
+				fct = func(t *vm.Thread) vm.Value {
+					vv := values.UintptrV(v(t))
+					var val vm.Value = &vv
+					return val
+				}
+			case false:
+				fct = func(t *vm.Thread) vm.Value {
+					vv := values.UintV(v(t))
+					var val vm.Value = &vv
+					return val
+				}
+			}
+		case 8:
+			fct = func(t *vm.Thread) vm.Value {
+				vv := values.Uint8V(v(t))
+				return &vv
+			}
+		case 16:
+			fct = func(t *vm.Thread) vm.Value {
+				vv := values.Uint16V(v(t))
+				return &vv
+			}
+		case 32:
+			fct = func(t *vm.Thread) vm.Value {
+				vv := values.Uint32V(v(t))
+				return &vv
+			}
+		case 64:
+			fct = func(t *vm.Thread) vm.Value {
+				vv := values.Uint64V(v(t))
+				return &vv
+			}
+		}
+	case *types.IntType:
+		v := x.asInt()
+		switch ty.Bits {
+		case 0:
+			fct = func(t *vm.Thread) vm.Value {
+				vv := values.IntV(v(t))
+				return &vv
+			}
+		case 8:
+			fct = func(t *vm.Thread) vm.Value {
+				vv := values.Int8V(v(t))
+				return &vv
+			}
+		case 16:
+			fct = func(t *vm.Thread) vm.Value {
+				vv := values.Int16V(v(t))
+				return &vv
+			}
+		case 32:
+			fct = func(t *vm.Thread) vm.Value {
+				vv := values.Int32V(v(t))
+				return &vv
+			}
+		case 64:
+			fct = func(t *vm.Thread) vm.Value {
+				vv := values.Int64V(v(t))
+				return &vv
+			}
+		}
+	case *types.FloatType:
+		v := x.asFloat()
+		switch ty.Bits {
+		case 32:
+			fct = func(t *vm.Thread) vm.Value {
+				vv := values.Float32V(v(t))
+				return &vv
+			}
+		case 64:
+			fct = func(t *vm.Thread) vm.Value {
+				vv := values.Float64V(v(t))
+				return &vv
+			}
+		}
+	case *types.IdealIntType:
+		fct = func(t *vm.Thread) vm.Value {
+			v := x.asIdealInt()()
+			vv := values.IdealIntV{V: v}
+			return &vv
+		}
+	case *types.IdealFloatType:
+		fct = func(t *vm.Thread) vm.Value {
+			v := x.asIdealFloat()()
+			vv := values.IdealFloatV{V: v}
+			return &vv
+		}
+	case *types.StringType:
+		fct = func(t *vm.Thread) vm.Value {
+			v := x.asString()
+			vv := values.StringV(v(t))
+			return &vv
+		}
+	case *types.ArrayType:
+		fct = func(t *vm.Thread) vm.Value {
+			v := x.asArray()
+			vv := v(t).Get(t)
+			return vv
+		}
+	case *types.StructType:
+		fct = func(t *vm.Thread) vm.Value {
+			v := x.asStruct()
+			vv := v(t).Get(t)
+			return vv
+		}
+	case *types.PtrType:
+		fct = func(t *vm.Thread) vm.Value {
+			return x.asPtr()(t)
+		}
+	case *types.PackageType:
+		fct = func(t *vm.Thread) vm.Value {
+			return x.asPackage()(t)
+		}
+	case *types.FuncType:
+		x.error("unhandled type: %v", ty.String())
+	case *types.InterfaceType:
+		x.error("unhandled type: %v", ty.String())
+	case *types.SliceType:
+		x.error("unhandled type: %v", ty.String())
+	case *types.MapType:
+		x.error("unhandled type: %v", ty.String())
+	case *types.ChanType:
+		x.error("unhandled type: %v", ty.String())
+	case *types.NamedType:
+		x.error("unhandled type: %v", ty.String())
+	case *types.MultiType:
+		x.error("unhandled type: %v", ty.String())
+	default:
+		x.error("unhandled type: %v", ty.String())
+	}
+	return fct
+}
+
+func (x *Expr) asInterface() func(*vm.Thread) interface{} {
+	switch sf := x.eval.(type) {
+	case func(t *vm.Thread) bool:
+		return func(t *vm.Thread) interface{} { return sf(t) }
+	case func(t *vm.Thread) uint64:
+		return func(t *vm.Thread) interface{} { return sf(t) }
+	case func(t *vm.Thread) int64:
+		return func(t *vm.Thread) interface{} { return sf(t) }
+	case func() *big.Int:
+		return func(*vm.Thread) interface{} { return sf() }
+	case func(t *vm.Thread) float64:
+		return func(t *vm.Thread) interface{} { return sf(t) }
+	case func() *big.Rat:
+		return func(*vm.Thread) interface{} { return sf() }
+	case func(t *vm.Thread) string:
+		return func(t *vm.Thread) interface{} { return sf(t) }
+	case func(t *vm.Thread) value.ArrayValue:
+		return func(t *vm.Thread) interface{} { return sf(t) }
+	case func(t *vm.Thread) value.StructValue:
+		return func(t *vm.Thread) interface{} { return sf(t) }
+	case func(t *vm.Thread) vm.Value:
+		return func(t *vm.Thread) interface{} { return sf(t) }
+	case func(t *vm.Thread) value.Func:
+		return func(t *vm.Thread) interface{} { return sf(t) }
+	case func(t *vm.Thread) value.Slice:
+		return func(t *vm.Thread) interface{} { return sf(t) }
+	case func(t *vm.Thread) value.Map:
+		return func(t *vm.Thread) interface{} { return sf(t) }
+	default:
+		logger.Panic().Msgf("unexpected expression node type %T at %v", x.eval, x.pos)
+	}
+
+	panic("fail")
+}
 
 func (x *Expr) asPackage() func(*vm.Thread) values.PackageValue {
 	return x.eval.(func(*vm.Thread) values.PackageValue)
