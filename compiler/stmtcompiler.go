@@ -457,11 +457,18 @@ func (sc *stmtCompiler) checkConstExpr(x ast.Expr) bool {
 		return sc.checkConstExpr(x.X)
 
 	case *ast.Ident:
-		// check that the referenced ident is a constant
-		// TODO: Check that it is not a function
 		v := sc.Block.Defs[x.Name]
-		_, ok := v.(*context.Constant)
-		return ok
+		c, ok := v.(*context.Constant)
+		if !ok {
+			return false
+		}
+
+		switch c.Type.(type) {
+		case *types.FuncType:
+			return false
+		default:
+			return true
+		}
 
 	default:
 		// The rest of the expression types are incompatible with constants
