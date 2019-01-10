@@ -12,19 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package compiler
+package builtins
 
 import (
-	"github.com/rs/zerolog/log"
-	"github.com/xav/go-script/types"
-	"github.com/xav/go-script/vm"
+	"go/token"
+
+	"github.com/xav/go-script/context"
+	"github.com/xav/go-script/values"
 )
 
-var logger = log.With().Str("component", "script.compiler").Logger()
+var universePos = token.NoPos
 
-// TODO: move to builtins
 var (
-	IdealIntType   vm.Type = &types.IdealIntType{}
-	IdealFloatType vm.Type = &types.IdealFloatType{}
-	IdealBoolType  vm.Type = &types.BoolType{}
+	// TrueV represents the 'true' built-in constant value.
+	TrueV = values.BoolV(true)
+	// FalseV represents the 'false' built-in constant value.
+	FalseV = values.BoolV(false)
 )
+
+func init() {
+	context.Universe.Defs["true"] = &context.Constant{ConstPos: universePos, Type: BoolType, Value: &TrueV}
+	context.Universe.Defs["false"] = &context.Constant{ConstPos: universePos, Type: BoolType, Value: &FalseV}
+}

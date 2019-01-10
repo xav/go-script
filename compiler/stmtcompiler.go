@@ -361,6 +361,7 @@ func (sc *stmtCompiler) definePkg(ident ast.Node, id, path string) *context.PkgI
 ////////////////////////////////////////////////////////////////////////////////
 
 func (sc *stmtCompiler) doConstAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.Token, declTypeExpr ast.Expr) {
+	nerr := sc.NumError()
 
 	//////////////////////////////////////
 	// Compile right side first so we have the types when compiling the left side and
@@ -380,7 +381,7 @@ func (sc *stmtCompiler) doConstAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.
 
 	// If this is a definition and the LHS is larger than the RHS, we won't be able to produce
 	// the usual error message because we can't begin to infer the types of the LHS.
-	if (tok == token.DEFINE || tok == token.VAR) && len(lhs) > len(ac.rmt.Elems) {
+	if tok == token.CONST && len(lhs) > len(ac.rmt.Elems) {
 		sc.error("not enough values for definition")
 	}
 
@@ -391,6 +392,11 @@ func (sc *stmtCompiler) doConstAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.
 	var declType vm.Type
 	if declTypeExpr != nil {
 		declType = sc.compileType(sc.Block, declTypeExpr)
+	}
+
+	// If there have been errors, our arrays are full of nil's so get out of here now.
+	if nerr != sc.NumError() {
+		return
 	}
 
 	for i, le := range lhs {
@@ -423,6 +429,10 @@ func (sc *stmtCompiler) doConstAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.
 			v = &values.IdealFloatV{V: rs[i].asIdealFloat()()}
 		case *types.IdealIntType:
 			v = &values.IdealIntV{V: rs[i].asIdealInt()()}
+		case *types.BoolType:
+			b := values.BoolV(rs[i].asIdealBool()())
+			v = &b
+
 		default:
 			sc.errorAt(sc.pos, "const initializer is not a constant")
 			v = nil
@@ -457,7 +467,7 @@ func (sc *stmtCompiler) checkConstExpr(x ast.Expr) bool {
 		return sc.checkConstExpr(x.X)
 
 	case *ast.Ident:
-		v := sc.Block.Defs[x.Name]
+		_, _, v := sc.Block.Lookup(x.Name)
 		c, ok := v.(*context.Constant)
 		if !ok {
 			return false

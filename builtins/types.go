@@ -15,13 +15,9 @@
 package builtins
 
 import (
-	"go/token"
-
 	"github.com/xav/go-script/context"
 	"github.com/xav/go-script/types"
 )
-
-var universePos = token.NoPos
 
 var (
 	// BoolType is the definition of the 'bool' built-in type

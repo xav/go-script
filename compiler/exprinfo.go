@@ -1123,7 +1123,14 @@ func (xi *ExprInfo) compileIdent(b *context.Block, constant bool, callCtx bool, 
 				return nil
 			}
 		} else {
-			expr.genConstant(def.Value)
+			switch name {
+			case "true":
+				expr.eval = func() bool { return true }
+			case "false":
+				expr.eval = func() bool { return false }
+			default:
+				expr.genConstant(def.Value)
+			}
 		}
 		return expr
 

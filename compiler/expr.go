@@ -385,6 +385,9 @@ func (x *Expr) asIdealInt() func() *big.Int {
 func (x *Expr) asIdealFloat() func() *big.Rat {
 	return x.eval.(func() *big.Rat)
 }
+func (x *Expr) asIdealBool() func() bool {
+	return x.eval.(func() bool)
+}
 func (x *Expr) asBool() func(*vm.Thread) bool {
 	return x.eval.(func(*vm.Thread) bool)
 }
