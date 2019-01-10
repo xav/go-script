@@ -150,7 +150,11 @@ func (cc *Compiler) compileFunc(b *context.Block, decl *types.FuncDecl, body *as
 // compileAssign compiles an assignment operation without the full generality of an assignCompiler.
 // See assignCompiler for a description of the arguments.
 func (cc *Compiler) compileAssign(pos token.Pos, b *context.Block, lt vm.Type, rs []*Expr, errOp, errPosName string) func(vm.Value, *vm.Thread) {
-	panic("NOT IMPLEMENTED")
+	ac, ok := cc.checkAssign(pos, rs, errOp, errPosName)
+	if !ok {
+		return nil
+	}
+	return ac.compile(b, lt)
 }
 
 // Type check the RHS of an assignment, returning a new assignCompiler and indicating if the type check succeeded.
