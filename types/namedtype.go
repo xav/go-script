@@ -18,8 +18,8 @@ import (
 	"fmt"
 	"go/token"
 
+	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
-	"github.com/xav/horus/warden/vm/value"
 )
 
 // NamedType represents a user defined type.
@@ -36,7 +36,7 @@ type NamedType struct {
 
 type Method struct {
 	decl *FuncDecl
-	fn   value.Func
+	fn   values.Func
 }
 
 // Pos returns the position of the definition in the source code

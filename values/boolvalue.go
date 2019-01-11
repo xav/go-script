@@ -22,6 +22,7 @@ import (
 
 type BoolValue interface {
 	vm.Value
+	GetIdeal() bool
 	Get(*vm.Thread) bool
 	Set(*vm.Thread, bool)
 }
@@ -36,6 +37,10 @@ func (v *BoolV) String() string {
 
 func (v *BoolV) Assign(t *vm.Thread, o vm.Value) {
 	*v = BoolV(o.(BoolValue).Get(t))
+}
+
+func (v *BoolV) GetIdeal() bool {
+	return bool(*v)
 }
 
 func (v *BoolV) Get(*vm.Thread) bool {

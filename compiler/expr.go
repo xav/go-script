@@ -22,7 +22,6 @@ import (
 	"github.com/xav/go-script/types"
 	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
-	"github.com/xav/horus/warden/vm/value"
 )
 
 // Expr is the result of compiling an expression.
@@ -357,17 +356,17 @@ func (x *Expr) asInterface() func(*vm.Thread) interface{} {
 		return func(*vm.Thread) interface{} { return sf() }
 	case func(t *vm.Thread) string:
 		return func(t *vm.Thread) interface{} { return sf(t) }
-	case func(t *vm.Thread) value.ArrayValue:
+	case func(t *vm.Thread) values.ArrayValue:
 		return func(t *vm.Thread) interface{} { return sf(t) }
-	case func(t *vm.Thread) value.StructValue:
+	case func(t *vm.Thread) values.StructValue:
 		return func(t *vm.Thread) interface{} { return sf(t) }
 	case func(t *vm.Thread) vm.Value:
 		return func(t *vm.Thread) interface{} { return sf(t) }
-	case func(t *vm.Thread) value.Func:
+	case func(t *vm.Thread) values.Func:
 		return func(t *vm.Thread) interface{} { return sf(t) }
-	case func(t *vm.Thread) value.Slice:
+	case func(t *vm.Thread) values.Slice:
 		return func(t *vm.Thread) interface{} { return sf(t) }
-	case func(t *vm.Thread) value.Map:
+	case func(t *vm.Thread) values.Map:
 		return func(t *vm.Thread) interface{} { return sf(t) }
 	default:
 		logger.Panic().Msgf("unexpected expression node type %T at %v", x.eval, x.pos)

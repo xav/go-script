@@ -1966,8 +1966,8 @@ func (x *Expr) genUnaryOpReceive(v *Expr) {
 func (x *Expr) genConstant(v vm.Value) {
 	switch x.ExprType.Lit().(type) {
 	case *types.BoolType:
-		x.eval = func(t *vm.Thread) bool {
-			return v.(values.BoolValue).Get(t)
+		x.eval = func() bool {
+			return v.(values.BoolValue).GetIdeal()
 		}
 	case *types.UintType:
 		x.eval = func(t *vm.Thread) uint64 {
