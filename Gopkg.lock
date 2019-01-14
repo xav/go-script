@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  digest = "1:ffe9824d294da03b391f44e1ae8281281b4afc1bdaa9588c9097785e3af10cec"
+  name = "github.com/davecgh/go-spew"
+  packages = ["spew"]
+  pruneopts = "UT"
+  revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
+  version = "v1.1.1"
+
+[[projects]]
   digest = "1:7f89e0c888fb99c61055c646f5678aae645b0b0a1443d9b2dcd9964d850827ce"
   name = "github.com/go-test/deep"
   packages = ["."]
@@ -30,13 +38,23 @@
   revision = "8747b7b3a51b5d08ee7ac50eaf4869edaf9f714a"
   version = "v1.11.0"
 
+[[projects]]
+  branch = "master"
+  digest = "1:52c7e5829899dbba971ccbde93b2eee47d4827ce9db2dfea5906a24a14c00d29"
+  name = "github.com/xav/horus"
+  packages = ["testing"]
+  pruneopts = "UT"
+  revision = "f1496c1a8b8e46d1fba55cba57617df2eb6adf43"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
+    "github.com/davecgh/go-spew/spew",
     "github.com/go-test/deep",
     "github.com/pkg/errors",
     "github.com/rs/zerolog/log",
+    "github.com/xav/horus/testing",
   ]
   solver-name = "gps-cdcl"
   solver-version = 1

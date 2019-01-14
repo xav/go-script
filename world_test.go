@@ -21,8 +21,21 @@ import (
 	"os"
 	"testing"
 
+	. "github.com/xav/horus/testing"
+
 	"github.com/go-test/deep"
 )
+
+func parseCode(t *testing.T, fset *token.FileSet, src string) []*ast.File {
+	t.Helper()
+	file, err := parser.ParseFile(fset, "", src, 0)
+	if err != nil {
+		t.Error(err.Error())
+		return nil
+	}
+
+	return []*ast.File{file}
+}
 
 func TestMain(m *testing.M) {
 	// ou := universe
@@ -59,25 +72,68 @@ func TestNewWorld(t *testing.T) {
 	}
 }
 
-func TestWorld_CompilePackage(t *testing.T) {
+func TestWorld_CompileEmptyPackage(t *testing.T) {
 	fset := token.NewFileSet()
 	files := parseCode(t, fset, `
 package main
 
 func main() {
-}`)
+}
+`)
 
 	w := NewWorld()
-	w.CompilePackage(fset, files, "main")
+	_, err := w.CompilePackage(fset, files, "main")
+	Ok(t, err)
 }
 
-func parseCode(t *testing.T, fset *token.FileSet, src string) []*ast.File {
-	t.Helper()
-	file, err := parser.ParseFile(fset, "", src, 0)
-	if err != nil {
-		t.Error(err.Error())
-		return nil
-	}
+func TestWorld_AssemblerFunc(t *testing.T) {
+	// func cpuid(eaxArg, ecxArg uint32) (eax, ebx, ecx, edx uint32)
+	fset := token.NewFileSet()
+	files := parseCode(t, fset, `
+package main
 
-	return []*ast.File{file}
+func asmfunc(eaxArg, ecxArg uint32) (eax, ebx, ecx, edx uint32)
+
+func main() {
+}
+`)
+
+	w := NewWorld()
+	_, err := w.CompilePackage(fset, files, "main")
+	Ok(t, err)
+}
+
+func TestWorld_ParseHelloWorld(t *testing.T) {
+	fset := token.NewFileSet()
+	files := parseCode(t, fset, `
+package main
+
+import "fmt"
+import "strings"
+
+func main() {
+    var hello = "Hello"
+    world := "World"
+    words := []string{hello, world}
+    SayHello(words)
+}
+
+func UnusedExported(v string) string {
+	return v+"foo"
+}
+
+// SayHello says Hello
+func SayHello(words []string) {
+    fmt.Println(joinStrings(words))
+}
+
+// joinStrings joins strings
+func joinStrings(words []string) string {
+    return strings.Join(words, ", ")
+}
+`)
+	w := NewWorld()
+	_, err := w.CompilePackage(fset, files, "main")
+
+	Ok(t, err)
 }
