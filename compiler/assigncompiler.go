@@ -40,7 +40,7 @@ import (
 type assignCompiler struct {
 	*Compiler
 	pos         token.Pos
-	rs          []*Expr          // The RHS expressions.  This may include nil's for expressions that failed to compile.
+	rs          []*Expr          // The RHS expressions. This may include nil's for expressions that failed to compile.
 	rmt         *types.MultiType // The (possibly unary) MultiType of the RHS.
 	isUnpack    bool             // Whether this is an unpack assignment (case 3).
 	allowMap    bool             // Whether map special assignment forms are allowed.

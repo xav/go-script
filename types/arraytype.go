@@ -68,7 +68,7 @@ func (t *ArrayType) Zero() vm.Value {
 	res := values.ArrayV(make([]vm.Value, t.Len))
 	// TODO: It's unfortunate that each element is separately heap allocated.
 	// We could add ZeroArray to everything, though that doesn't help with multidimensional arrays.
-	// Or we could do something unsafe.  We'll have this same problem with structs.
+	// Or we could do something unsafe. We'll have this same problem with structs.
 	for i := int64(0); i < t.Len; i++ {
 		res[i] = t.Elem.Zero()
 	}

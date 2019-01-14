@@ -28,14 +28,14 @@ import (
 //
 // Global blocks assume that the refs will be compiled in using defs[name].Init.
 type Block struct {
-	Outer  *Block         // The block enclosing this one
-	Inner  *Block         // The nested block currently being compiled, or nil.
-	Scope  *Scope         // The Scope containing this block.
-	Defs   map[string]Def // The Variables, Constants, and Types defined in this block.
-	Global bool           // If Global, do not allocate new vars and consts in the frame;
+	Outer   *Block         // The block enclosing this one
+	Inner   *Block         // The nested block currently being compiled, or nil.
+	Scope   *Scope         // The Scope containing this block.
+	Defs    map[string]Def // The Variables, Constants, and Types defined in this block.
+	Global  bool           // If Global, do not allocate new vars and consts in the frame;
+	NumVars int            // The number of variables defined in this block.
 
-	offset  int // The index of the first variable defined in this block.
-	numVars int // The number of variables defined in this block.
+	offset int // The index of the first variable defined in this block.
 }
 
 // EnterChild creates a new block with this one as parent, using the same scope.
@@ -46,7 +46,7 @@ func (b *Block) EnterChild() *Block {
 		Outer:  b,
 		Scope:  b.Scope,
 		Defs:   make(map[string]Def),
-		offset: b.offset + b.numVars,
+		offset: b.offset + b.NumVars,
 	}
 	b.Inner = sub
 	return sub
@@ -122,8 +122,8 @@ func (b *Block) DefineTemp(t vm.Type) *Variable {
 func (b *Block) defineSlot(temp bool) int {
 	index := -1
 	if !b.Global || temp {
-		index = b.offset + b.numVars
-		b.numVars++
+		index = b.offset + b.NumVars
+		b.NumVars++
 		if index >= b.Scope.MaxVars {
 			b.Scope.MaxVars = index + 1
 		}

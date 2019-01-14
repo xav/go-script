@@ -19,6 +19,7 @@ import (
 	"go/ast"
 	"go/importer"
 	"go/token"
+	"math/big"
 	"strconv"
 
 	gotypes "go/types"
@@ -57,19 +58,18 @@ func (sc *stmtCompiler) compile(s ast.Stmt) {
 		sc.SilentErrors++ // Error already reported by parser.
 
 	case *ast.AssignStmt:
-		notImplemented = true
+		sc.compileAssignStmt(s)
 
 	case *ast.BlockStmt:
-		notImplemented = true
+		sc.compileBlockStmt(s)
 
 	case *ast.BranchStmt:
-		notImplemented = true
+		sc.compileBranchStmt(s)
 
 	case *ast.CaseClause:
 		// sc.error("case clause outside switch")
 
 	case *ast.CommClause:
-		// sc.error("case clause outside select")
 		notImplemented = true
 
 	case *ast.DeclStmt:
@@ -82,37 +82,37 @@ func (sc *stmtCompiler) compile(s ast.Stmt) {
 		// Do nothing.
 
 	case *ast.ExprStmt:
-		notImplemented = true
+		sc.compileExprStmt(s)
 
 	case *ast.ForStmt:
-		notImplemented = true
+		sc.compileForStmt(s)
 
 	case *ast.GoStmt:
 		notImplemented = true
 
 	case *ast.IfStmt:
-		notImplemented = true
+		sc.compileIfStmt(s)
 
 	case *ast.IncDecStmt:
-		notImplemented = true
+		sc.compileIncDecStmt(s)
 
 	case *ast.LabeledStmt:
-		notImplemented = true
+		sc.compileLabeledStmt(s)
 
 	case *ast.RangeStmt:
-		notImplemented = true
+		sc.compileRangeStmt(s)
 
 	case *ast.ReturnStmt:
-		notImplemented = true
+		sc.compileReturnStmt(s)
 
 	case *ast.SelectStmt:
-		notImplemented = true
+		sc.compileSelectStmt(s)
 
 	case *ast.SendStmt:
 		notImplemented = true
 
 	case *ast.SwitchStmt:
-		notImplemented = true
+		sc.compileSwitchStmt(s)
 
 	case *ast.TypeSwitchStmt:
 		notImplemented = true
@@ -134,6 +134,65 @@ func (sc *stmtCompiler) compile(s ast.Stmt) {
 
 // Statements //////////////////////////////////////////////////////////////////
 
+func (sc *stmtCompiler) compileAssignStmt(stmt *ast.AssignStmt) {
+	switch stmt.Tok {
+	case token.ASSIGN, token.DEFINE:
+		sc.doAssign(stmt.Lhs, stmt.Rhs, stmt.Tok, nil)
+
+	default:
+		sc.doAssignOp(stmt)
+	}
+}
+
+func (sc *stmtCompiler) compileBlockStmt(stmt *ast.BlockStmt) {
+	bc := sc.enterChild()
+	bc.compileStmts(stmt)
+	bc.exit()
+}
+
+func (sc *stmtCompiler) compileBranchStmt(stmt *ast.BranchStmt) {
+	var pc *uint
+
+	switch stmt.Tok {
+	case token.BREAK:
+		l := sc.findLexicalLabel(stmt.Label, func(l *Label) bool {
+			return l.breakPC != nil
+		}, "break", "for loop, switch, or select")
+		if l == nil {
+			return
+		}
+		pc = l.breakPC
+
+	case token.CONTINUE:
+		l := sc.findLexicalLabel(stmt.Label, func(l *Label) bool { return l.continuePC != nil }, "continue", "for loop")
+		if l == nil {
+			return
+		}
+		pc = l.continuePC
+
+	case token.GOTO:
+		l, ok := sc.Labels[stmt.Label.Name]
+		if !ok {
+			pc := badPC
+			l = &Label{name: stmt.Label.Name, desc: "unresolved label", gotoPC: &pc, used: stmt.Pos()}
+			sc.Labels[l.name] = l
+		}
+
+		pc = l.gotoPC
+		sc.Flow.putGoto(stmt.Pos(), l.name, sc.Block)
+
+	case token.FALLTHROUGH:
+		sc.error("fallthrough outside switch")
+		return
+
+	default:
+		logger.Panic().Msgf("Unexpected branch token %v", stmt.Tok)
+	}
+
+	sc.Flow.putBranching(false, pc)
+	sc.Push(func(v *vm.Thread) { v.PC = *pc })
+}
+
 func (sc *stmtCompiler) compileDeclStmt(stmt *ast.DeclStmt) {
 	switch decl := stmt.Decl.(type) {
 	case *ast.BadDecl:
@@ -153,11 +212,435 @@ func (sc *stmtCompiler) compileDeclStmt(stmt *ast.DeclStmt) {
 	}
 }
 
+func (sc *stmtCompiler) compileExprStmt(stmt *ast.ExprStmt) {
+	bc := sc.enterChild()
+	defer bc.exit()
+
+	e := sc.CompileExpr(bc.Block, false, stmt.X)
+	if e == nil {
+		return
+	}
+
+	if e.Exec == nil {
+		sc.error("%s cannot be used as expression statement", e.desc)
+		return
+	}
+
+	sc.Push(e.Exec)
+}
+
+func (sc *stmtCompiler) compileForStmt(stmt *ast.ForStmt) {
+	// Wrap the entire for in a block.
+	bc := sc.enterChild()
+	defer bc.exit()
+
+	// Compile init statement, if any
+	if stmt.Init != nil {
+		bc.CompileStmt(stmt.Init)
+	}
+
+	bodyPC := badPC
+	postPC := badPC
+	checkPC := badPC
+	endPC := badPC
+
+	// Jump to condition check.
+	// We generate slightly less code by placing the condition check after the body.
+	sc.Flow.putBranching(false, &checkPC)
+	sc.Push(func(v *vm.Thread) {
+		v.PC = checkPC
+	})
+
+	// Compile body
+	bodyPC = sc.NextPC()
+	body := bc.enterChild()
+	if sc.stmtLabel != nil {
+		body.Label = sc.stmtLabel
+	} else {
+		body.Label = &Label{resolved: stmt.Pos()}
+	}
+	body.Label.desc = "for loop"
+	body.Label.breakPC = &endPC
+	body.Label.continuePC = &postPC
+	body.compileStmts(stmt.Body)
+	body.exit()
+
+	// Compile post, if any
+	postPC = sc.NextPC()
+	if stmt.Post != nil {
+		// TODO: Does the parser disallow short declarations in stmt.Post?
+		bc.CompileStmt(stmt.Post)
+	}
+
+	// Compile condition check, if any
+	checkPC = sc.NextPC()
+	if stmt.Cond == nil {
+		// If the condition is absent, it is equivalent to true.
+		sc.Flow.putBranching(false, &bodyPC)
+		sc.Push(func(v *vm.Thread) {
+			v.PC = bodyPC
+		})
+	} else {
+		e := bc.CompileExpr(bc.Block, false, stmt.Cond)
+		switch {
+		case e == nil:
+			// Error reported by compileExpr
+		case !e.ExprType.IsBoolean():
+			sc.error("'for' condition must be boolean\n\t%v", e.ExprType)
+		default:
+			eval := e.asBool()
+			sc.Flow.putBranching(true, &bodyPC)
+			sc.Push(func(t *vm.Thread) {
+				if eval(t) {
+					t.PC = bodyPC
+				}
+			})
+		}
+	}
+
+	endPC = sc.NextPC()
+}
+
+func (sc *stmtCompiler) compileIfStmt(stmt *ast.IfStmt) {
+	// "The scope of any variables declared by [the init] statement extends to the end of the "if" statement
+	// and the variables are initialized once before the statement is entered.""
+	//
+	// What this really means is that there's an implicit scope wrapping every if, for, and switch statement.
+	// This is subtly different from what it actually says when there's a non-block else clause,
+	// because that else claus has to execute in a scope that is *not* the surrounding scope.
+	bc := sc.enterChild()
+	defer bc.exit()
+
+	// Compile init statement, if any
+	if stmt.Init != nil {
+		bc.CompileStmt(stmt.Init)
+	}
+
+	elsePC := badPC
+	endPC := badPC
+
+	// Compile condition, if any. If there is no condition, we fall through to the body.
+	if stmt.Cond != nil {
+		e := bc.CompileExpr(bc.Block, false, stmt.Cond)
+		switch {
+		case e == nil:
+			// Error reported by compileExpr
+		case !e.ExprType.IsBoolean():
+			e.error("'if' condition must be boolean\n\t%v", e.ExprType)
+		default:
+			eval := e.asBool()
+			sc.Flow.putBranching(true, &elsePC)
+			sc.Push(func(t *vm.Thread) {
+				if !eval(t) {
+					t.PC = elsePC
+				}
+			})
+		}
+	}
+
+	// Compile body
+	body := bc.enterChild()
+	body.compileStmts(stmt.Body)
+	body.exit()
+
+	// Compile else
+	if stmt.Else != nil {
+		// Skip over else if we executed the body
+		sc.Flow.putBranching(false, &endPC)
+		sc.Push(func(v *vm.Thread) { v.PC = endPC })
+		elsePC = sc.NextPC()
+		bc.CompileStmt(stmt.Else)
+	} else {
+		elsePC = sc.NextPC()
+	}
+	endPC = sc.NextPC()
+}
+
+func (sc *stmtCompiler) compileIncDecStmt(stmt *ast.IncDecStmt) {
+	// Create temporary block for extractEffect
+	bc := sc.enterChild()
+	defer bc.exit()
+
+	l := sc.CompileExpr(bc.Block, false, stmt.X)
+	if l == nil {
+		return
+	}
+
+	if l.evalAddr == nil {
+		l.error("cannot assign to %s", l.desc)
+		return
+	}
+	if !(l.ExprType.IsInteger() || l.ExprType.IsFloat()) {
+		l.errorOpType(stmt.Tok, l.ExprType)
+		return
+	}
+
+	var op token.Token
+	var desc string
+	switch stmt.Tok {
+	case token.INC:
+		op = token.ADD
+		desc = "increment statement"
+	case token.DEC:
+		op = token.SUB
+		desc = "decrement statement"
+	default:
+		logger.Panic().Msgf("Unexpected IncDec token %v", stmt.Tok)
+	}
+
+	effect, l := l.extractEffect(bc.Block, desc)
+
+	one := l.newExpr(IdealIntType, "constant")
+	one.pos = stmt.Pos()
+	one.eval = func() *big.Int { return big.NewInt(1) }
+
+	binop := l.compileBinaryExpr(op, l, one)
+	if binop == nil {
+		return
+	}
+
+	assign := sc.compileAssign(stmt.Pos(), bc.Block, l.ExprType, []*Expr{binop}, "", "")
+	if assign == nil {
+		logger.Panic().Msgf("compileAssign type check failed")
+	}
+
+	lf := l.evalAddr
+	sc.Push(func(v *vm.Thread) {
+		effect(v)
+		assign(lf(v), v)
+	})
+}
+
+func (sc *stmtCompiler) compileLabeledStmt(stmt *ast.LabeledStmt) {
+	// Define label
+	l, ok := sc.Labels[stmt.Label.Name]
+	if ok {
+		if l.resolved.IsValid() {
+			sc.error("label %s redeclared in this block\n\tprevious declaration at %s", stmt.Label.Name, sc.FSet.Position(l.resolved))
+		}
+	} else {
+		pc := badPC
+		l = &Label{name: stmt.Label.Name, gotoPC: &pc}
+		sc.Labels[l.name] = l
+	}
+	l.desc = "regular label"
+	l.resolved = stmt.Pos()
+
+	// Set goto PC
+	*l.gotoPC = sc.NextPC()
+
+	// Define flow entry so we can check for jumps over declarations.
+	sc.Flow.putLabel(l.name, sc.Block)
+
+	// Compile the statement.
+	sc = &stmtCompiler{sc.BlockCompiler, stmt.Stmt.Pos(), l}
+	sc.compile(stmt.Stmt)
+}
+
+func (sc *stmtCompiler) compileRangeStmt(stmt *ast.RangeStmt) {
+	panic("Range statement not implemented")
+}
+
+func (sc *stmtCompiler) compileReturnStmt(stmt *ast.ReturnStmt) {
+	if sc.FnType == nil {
+		sc.error("cannot return at the top level")
+		return
+	}
+
+	if len(stmt.Results) == 0 && (len(sc.FnType.Out) == 0 || sc.OutVarsNamed) {
+		// Simple case. Simply exit from the function.
+		sc.Flow.putTerm()
+		sc.Push(func(v *vm.Thread) { v.PC = returnPC })
+		return
+	}
+
+	bc := sc.enterChild()
+	defer bc.exit()
+
+	// Compile expressions
+	bad := false
+	rs := make([]*Expr, len(stmt.Results))
+	for i, re := range stmt.Results {
+		rs[i] = sc.CompileExpr(bc.Block, false, re)
+		if rs[i] == nil {
+			bad = true
+		}
+	}
+	if bad {
+		return
+	}
+
+	// Create assigner
+
+	// If the expression list in the "return" statement is a single call to a multi-valued function,
+	// the values returned from the called function will be returned from this one.
+	assign := sc.compileAssign(stmt.Pos(), bc.Block, types.NewMultiType(sc.FnType.Out), rs, "return", "value")
+
+	// "The result types of the current function and the called function must match."
+	// Match is fuzzy. It should say that they must be assignment compatible.
+
+	// Compile
+	start := len(sc.FnType.In)
+	nout := len(sc.FnType.Out)
+	sc.Flow.putTerm()
+	sc.Push(func(t *vm.Thread) {
+		assign(values.MultiV(t.Frame.Vars[start:start+nout]), t)
+		t.PC = returnPC
+	})
+}
+
+func (sc *stmtCompiler) compileSelectStmt(stmt *ast.SelectStmt) {
+	panic("Select statement not implemented")
+}
+
+func (sc *stmtCompiler) compileSwitchStmt(stmt *ast.SwitchStmt) {
+	// Create implicit scope around switch
+	bc := sc.enterChild()
+	defer bc.exit()
+
+	// Compile init statement, if any
+	if stmt.Init != nil {
+		bc.CompileStmt(stmt.Init)
+	}
+
+	// Compile condition, if any, and extract its effects
+	var cond *Expr
+	condbc := bc.enterChild()
+	if stmt.Tag != nil {
+		e := condbc.CompileExpr(condbc.Block, false, stmt.Tag)
+		if e != nil {
+			var effect func(*vm.Thread)
+			effect, cond = e.extractEffect(condbc.Block, "switch")
+			sc.Push(effect)
+		}
+	}
+
+	// Count cases
+	ncases := 0
+	hasDefault := false
+	for _, c := range stmt.Body.List {
+		clause, ok := c.(*ast.CaseClause)
+		if !ok {
+			sc.errorAt(clause.Pos(), "switch statement must contain case clauses")
+			continue
+		}
+		if clause.List == nil {
+			if hasDefault {
+				sc.errorAt(clause.Pos(), "switch statement contains more than one default case")
+			}
+			hasDefault = true
+		} else {
+			ncases += len(clause.List)
+		}
+	}
+
+	// Compile case expressions
+	cases := make([]func(*vm.Thread) bool, ncases)
+	i := 0
+	for _, c := range stmt.Body.List {
+		clause, ok := c.(*ast.CaseClause)
+		if !ok {
+			continue
+		}
+		for _, v := range clause.List {
+			e := condbc.CompileExpr(condbc.Block, false, v)
+			switch {
+			case e == nil:
+				// Error reported by compileExpr
+			case cond == nil && !e.ExprType.IsBoolean():
+				sc.errorAt(v.Pos(), "'case' condition must be boolean")
+			case cond == nil:
+				cases[i] = e.asBool()
+			case cond != nil:
+				// Create comparison
+				// TODO: This produces bad error messages
+				compare := e.compileBinaryExpr(token.EQL, cond, e)
+				if compare != nil {
+					cases[i] = compare.asBool()
+				}
+			}
+			i++
+		}
+	}
+
+	// Emit condition
+	casePCs := make([]*uint, ncases+1)
+	endPC := badPC
+
+	sc.Flow.put(false, false, casePCs)
+	sc.Push(func(t *vm.Thread) {
+		for i, c := range cases {
+			if c(t) {
+				t.PC = *casePCs[i]
+				return
+			}
+		}
+		t.PC = *casePCs[ncases]
+	})
+	condbc.exit()
+
+	// Compile cases
+	i = 0
+	for _, c := range stmt.Body.List {
+		clause, ok := c.(*ast.CaseClause)
+		if !ok {
+			continue
+		}
+
+		// Save jump PC's
+		pc := sc.NextPC()
+		if clause.List != nil {
+			for _ = range clause.List {
+				casePCs[i] = &pc
+				i++
+			}
+		} else {
+			// Default clause
+			casePCs[ncases] = &pc
+		}
+
+		// Compile body
+		fall := false
+		for j, s1 := range clause.Body {
+			if br, ok := s1.(*ast.BranchStmt); ok && br.Tok == token.FALLTHROUGH {
+				// println("Found fallthrough");
+				// It may be used only as the final non-empty statement in a case or default clause in an expression "switch" statement.
+				for _, s2 := range clause.Body[j+1:] {
+					// XXX(Spec) 6g also considers empty blocks to be empty statements.
+					if _, ok := s2.(*ast.EmptyStmt); !ok {
+						sc.errorAt(s1.Pos(), "fallthrough statement must be final statement in case")
+						break
+					}
+				}
+				fall = true
+			} else {
+				bc.CompileStmt(s1)
+			}
+		}
+		// Jump out of switch, unless there was a fallthrough
+		if !fall {
+			sc.Flow.putBranching(false, &endPC)
+			sc.Push(func(v *vm.Thread) { v.PC = endPC })
+		}
+	}
+
+	// Get end PC
+	endPC = sc.NextPC()
+	if !hasDefault {
+		casePCs[ncases] = &endPC
+	}
+}
+
 // Declarations ////////////////////////////////////////////////////////////////
 
 func (sc *stmtCompiler) compileFuncDecl(fd *ast.FuncDecl) {
 	if !sc.Block.Global {
 		logger.Panic().Msg("FuncDecl at statement level")
+	}
+
+	if fd.Body == nil {
+		sc.errorAt(fd.Name.Pos(), "function %s declared without body.", fd.Name.Name)
+		return
 	}
 
 	ftd := sc.compileFuncType(sc.Block, fd.Type)
@@ -176,6 +659,7 @@ func (sc *stmtCompiler) compileFuncDecl(fd *ast.FuncDecl) {
 		}
 	}
 
+	// TODO: If fd.Body is nil, we might be dealing with an assembler function.
 	fn := sc.compileFunc(sc.Block, ftd, fd.Body)
 	if c == nil || fn == nil {
 		// when the compilation failed, remove the func identifier from the block definitions.
@@ -710,6 +1194,87 @@ func (sc *stmtCompiler) doAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.Token
 			}
 		})
 	}
+}
+
+var assignOpToOp = map[token.Token]token.Token{
+	token.ADD_ASSIGN: token.ADD,
+	token.SUB_ASSIGN: token.SUB,
+	token.MUL_ASSIGN: token.MUL,
+	token.QUO_ASSIGN: token.QUO,
+	token.REM_ASSIGN: token.REM,
+
+	token.AND_ASSIGN:     token.AND,
+	token.OR_ASSIGN:      token.OR,
+	token.XOR_ASSIGN:     token.XOR,
+	token.SHL_ASSIGN:     token.SHL,
+	token.SHR_ASSIGN:     token.SHR,
+	token.AND_NOT_ASSIGN: token.AND_NOT,
+}
+
+func (sc *stmtCompiler) doAssignOp(stmt *ast.AssignStmt) {
+	if len(stmt.Lhs) != 1 || len(stmt.Rhs) != 1 {
+		sc.error("tuple assignment cannot be combined with an arithmetic operation")
+		return
+	}
+
+	// Create temporary block for extractEffect
+	bc := sc.enterChild()
+	defer bc.exit()
+
+	l := sc.CompileExpr(bc.Block, false, stmt.Lhs[0])
+	r := sc.CompileExpr(bc.Block, false, stmt.Rhs[0])
+	if l == nil || r == nil {
+		return
+	}
+
+	if l.evalAddr == nil {
+		l.error("cannot assign to %s", l.desc)
+		return
+	}
+
+	effect, l := l.extractEffect(bc.Block, "operator-assignment")
+
+	binop := r.compileBinaryExpr(assignOpToOp[stmt.Tok], l, r)
+	if binop == nil {
+		return
+	}
+
+	assign := sc.compileAssign(stmt.Pos(), bc.Block, l.ExprType, []*Expr{binop}, "assignment", "value")
+	if assign == nil {
+		logger.Panic().Msgf("compileAssign type check failed")
+	}
+
+	lf := l.evalAddr
+	sc.Push(func(t *vm.Thread) {
+		effect(t)
+		assign(lf(t), t)
+	})
+}
+
+func (sc *stmtCompiler) findLexicalLabel(name *ast.Ident, pred func(*Label) bool, errOp, errCtx string) *Label {
+	bc := sc.BlockCompiler
+	for ; bc != nil; bc = bc.Parent {
+		if bc.Label == nil {
+			continue
+		}
+		l := bc.Label
+		if name == nil && pred(l) {
+			return l
+		}
+		if name != nil && l.name == name.Name {
+			if !pred(l) {
+				sc.error("cannot %s to %s %s", errOp, l.desc, l.name)
+				return nil
+			}
+			return l
+		}
+	}
+	if name == nil {
+		sc.error("%s outside %s", errOp, errCtx)
+	} else {
+		sc.error("%s label %s not defined", errOp, name.Name)
+	}
+	return nil
 }
 
 ////////////////////////////////////////////////////////////////////////////////

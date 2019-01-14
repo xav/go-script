@@ -22,6 +22,6 @@ type Label struct {
 	gotoPC     *uint     // The PC goto statements should jump to, or nil if this label cannot be goto'd (such as an anonymous for loop label).
 	breakPC    *uint     // The PC break statements should jump to, or nil if a break statement is invalid.
 	continuePC *uint     // The PC continue statements should jump to, or nil if a continue statement is invalid.
-	resolved   token.Pos // The position where this label was resolved.  If it has not been resolved yet, an invalid position.
+	resolved   token.Pos // The position where this label was resolved. If it has not been resolved yet, an invalid position.
 	used       token.Pos // The position where this label was first jumped to.
 }

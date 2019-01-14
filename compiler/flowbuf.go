@@ -43,6 +43,29 @@ type FlowEnt struct {
 	visited bool    // Whether this flow entry has been visited by reachesEnd.
 }
 
+func newFlowBlock(target string, b *context.Block) *FlowBlock {
+	// Find the inner-most block containing definitions
+	for b.NumVars == 0 && b.Outer != nil && b.Outer.Scope == b.Scope {
+		b = b.Outer
+	}
+
+	// Count parents leading to the root of the scope
+	n := 0
+	for bp := b; bp.Scope == b.Scope; bp = bp.Outer {
+		n++
+	}
+
+	// Capture numVars from each block to the root of the scope
+	numVars := make([]int, n)
+	i := 0
+	for bp := b; i < n; bp = bp.Outer {
+		numVars[i] = bp.NumVars
+		i++
+	}
+
+	return &FlowBlock{target, b, numVars}
+}
+
 // NewFlowBuf creates a new FlowBuf using the specified CodeBuf
 func NewFlowBuf(cb *CodeBuf) *FlowBuf {
 	return &FlowBuf{
@@ -51,6 +74,43 @@ func NewFlowBuf(cb *CodeBuf) *FlowBuf {
 		gotos:  make(map[token.Pos]*FlowBlock),
 		labels: make(map[string]*FlowBlock),
 	}
+}
+
+// put creates a flow control point for the next PC in the code buffer.
+// This should be done before pushing the instruction into the code buffer.
+func (f *FlowBuf) put(cond bool, term bool, jumps []*uint) {
+	pc := f.cb.NextPC()
+	if ent, ok := f.ents[pc]; ok {
+		logger.Panic().Msgf("Flow entry already exists at PC %d: %+v", pc, ent)
+	}
+	f.ents[pc] = &FlowEnt{
+		cond:    cond,
+		term:    term,
+		jumps:   jumps,
+		visited: false,
+	}
+}
+
+// putTerm creates a flow control point at the next PC that unconditionally terminates execution.
+func (f *FlowBuf) putTerm() {
+	f.put(false, true, nil)
+}
+
+// putBranching creates a flow control point at the next PC that jumps to one PC and,
+// if cond is true, can also continue to the PC following the next PC.
+func (f *FlowBuf) putBranching(cond bool, jumpPC *uint) {
+	f.put(cond, false, []*uint{jumpPC})
+}
+
+// putGoto captures the block at a goto statement.
+// This should be called in addition to putting a flow control point.
+func (f *FlowBuf) putGoto(pos token.Pos, target string, b *context.Block) {
+	f.gotos[pos] = newFlowBlock(target, b)
+}
+
+// putLabel captures the block at a label.
+func (f *FlowBuf) putLabel(name string, b *context.Block) {
+	f.labels[name] = newFlowBlock("", b)
 }
 
 // reachesEnd returns true if the end of f's code buffer can be reached from the given program counter.

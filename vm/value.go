@@ -18,9 +18,8 @@ type Value interface {
 	// String returns the string representation of this value.
 	String() string
 
-	// Assign copies another value into this one.  It should
-	// assume that the other value satisfies the same specific
-	// value interface (BoolValue, etc.), but must not assume
-	// anything about its specific type.
+	// Assign copies another value into this one.
+	// It should assume that the other value satisfies the same specific value interface (BoolValue, etc.),
+	// but must not assume anything about its specific type.
 	Assign(t *Thread, v Value)
 }

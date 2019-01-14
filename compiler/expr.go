@@ -16,9 +16,12 @@ package compiler
 
 import (
 	"fmt"
+	"go/token"
+	"log"
 	"math/big"
 
 	"github.com/xav/go-script/builtins"
+	"github.com/xav/go-script/context"
 	"github.com/xav/go-script/types"
 	"github.com/xav/go-script/values"
 	"github.com/xav/go-script/vm"
@@ -171,6 +174,8 @@ func (x *Expr) convertToInt(max int64, negErr string, errOp string) *Expr {
 	return nil
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 // derefArray returns an expression of array type if the given expression is a *array type.
 // Otherwise, returns the given expression.
 func (x *Expr) derefArray() *Expr {
@@ -184,6 +189,68 @@ func (x *Expr) derefArray() *Expr {
 		}
 	}
 	return x
+}
+
+// extractEffect separates out any side-effects that the expression may have, returning a function
+// that will perform those effects and a new exprCompiler that is guaranteed to be side-effect free.
+//
+// These are the equivalents of "temp := expr" and "temp" (or "temp := &expr" and "*temp" for addressable exprs).
+//
+// Because this creates a temporary variable, the caller should create a temporary block for
+// the compilation of this expression and the evaluation of the results.
+func (x *Expr) extractEffect(b *context.Block, errOp string) (func(*vm.Thread), *Expr) {
+	// Create "&x" if x is addressable
+	rhs := x
+	if x.evalAddr != nil {
+		rhs = x.compileUnaryExpr(token.AND, rhs)
+	}
+
+	// Create temp
+	ac, ok := x.checkAssign(x.pos, []*Expr{rhs}, errOp, "")
+	if !ok {
+		return nil, nil
+	}
+	if len(ac.rmt.Elems) != 1 {
+		x.error("multi-valued expression not allowed in %s", errOp)
+		return nil, nil
+	}
+	tempType := ac.rmt.Elems[0]
+	if tempType.IsIdeal() {
+		switch {
+		case tempType.IsInteger():
+			tempType = builtins.IntType
+		case tempType.IsFloat():
+			tempType = builtins.Float64Type
+		default:
+			log.Panicf("unexpected ideal type %v", tempType)
+		}
+	}
+	temp := b.DefineTemp(tempType)
+	tempIdx := temp.Index
+
+	// Create "temp := rhs"
+	assign := ac.compile(b, tempType)
+	if assign == nil {
+		log.Panicf("compileAssign type check failed")
+	}
+
+	effect := func(t *vm.Thread) {
+		tempVal := tempType.Zero()
+		t.Frame.Vars[tempIdx] = tempVal
+		assign(tempVal, t)
+	}
+
+	// Generate "temp" or "*temp"
+	getTemp := x.compileVariable(0, temp)
+	if x.evalAddr == nil {
+		return effect, getTemp
+	}
+
+	deref := x.compileStarExpr(getTemp)
+	if deref == nil {
+		return nil, nil
+	}
+	return effect, deref
 }
 
 ////////////////////////////////////////////////////////////////////////////////
