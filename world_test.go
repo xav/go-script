@@ -103,6 +103,20 @@ func main() {
 	Ok(t, err)
 }
 
+func TestWorld_BuiltinFunc(t *testing.T) {
+	fset := token.NewFileSet()
+	files := parseCode(t, fset, `
+package main
+
+func main() {
+	a := len("foo")
+}
+`)
+	w := NewWorld()
+	_, err := w.CompilePackage(fset, files, "main")
+	Ok(t, err)
+}
+
 func TestWorld_ParseHelloWorld(t *testing.T) {
 	fset := token.NewFileSet()
 	files := parseCode(t, fset, `

@@ -33,4 +33,23 @@ var (
 func init() {
 	context.Universe.Defs["true"] = &context.Constant{ConstPos: universePos, Type: BoolType, Value: &TrueV}
 	context.Universe.Defs["false"] = &context.Constant{ConstPos: universePos, Type: BoolType, Value: &FalseV}
+
+	context.Universe.Defs["byte"] = context.Universe.Defs["uint8"]
+
+	// Built-in functions
+	context.Universe.DefineConst("append", universePos, AppendType, nil)
+	context.Universe.DefineConst("cap", universePos, CapType, nil)
+	context.Universe.DefineConst("close", universePos, CloseType, nil)
+	context.Universe.DefineConst("complex", universePos, ComplexType, nil)
+	context.Universe.DefineConst("copy", universePos, CopyType, nil)
+	context.Universe.DefineConst("delete", universePos, DeleteType, nil)
+	context.Universe.DefineConst("image", universePos, ImagType, nil)
+	context.Universe.DefineConst("len", universePos, LenType, nil)
+	context.Universe.DefineConst("make", universePos, MakeType, nil)
+	context.Universe.DefineConst("new", universePos, NewType, nil)
+	context.Universe.DefineConst("panic", universePos, PanicType, nil)
+	context.Universe.DefineConst("print", universePos, PrintType, nil)
+	context.Universe.DefineConst("println", universePos, PrintlnType, nil)
+	context.Universe.DefineConst("real", universePos, RealType, nil)
+	context.Universe.DefineConst("recover", universePos, RecoverType, nil)
 }

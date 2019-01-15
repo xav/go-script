@@ -748,6 +748,7 @@ func (xi *ExprInfo) compileBuiltinCallExpr(b *context.Block, ft *types.FuncType,
 			xi.error("illegal argument type for len function\n\t%v", arg.ExprType)
 			return nil
 		}
+		return expr
 
 	//////////////////////////////////////
 	case builtins.CapType:
@@ -773,6 +774,7 @@ func (xi *ExprInfo) compileBuiltinCallExpr(b *context.Block, ft *types.FuncType,
 			xi.error("illegal argument type for cap function\n\t%v", arg.ExprType)
 			return nil
 		}
+		return expr
 
 	//////////////////////////////////////
 	case builtins.NewType:
