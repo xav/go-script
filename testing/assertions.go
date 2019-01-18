@@ -15,10 +15,12 @@
 package testing
 
 import (
+	"go/scanner"
 	"testing"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/go-test/deep"
+	"github.com/pkg/errors"
 )
 
 // Assert fails the test if the condition is false.
@@ -61,5 +63,27 @@ func ErrEquals(tb testing.TB, exp string, act error) {
 	if act.Error() != exp {
 		tb.Logf("exp err: %q but got: %q\n", exp, act.Error())
 		tb.FailNow()
+	}
+}
+
+func ScannerErrEquals(tb testing.TB, exp string, act error) {
+	tb.Helper()
+	if act == nil {
+		tb.Logf("exp err %q but err was nil\n", "exp")
+		tb.FailNow()
+	}
+	switch e := errors.Cause(act).(type) {
+	case scanner.ErrorList:
+		if e[0].Error() != exp {
+			tb.Logf("exp err: %q but got: %q\n", exp, e[0].Error())
+			tb.FailNow()
+		}
+	case scanner.Error:
+		if e.Error() != "foo" {
+			tb.Logf("exp err: %q but got: %q\n", "exp", e.Error())
+			tb.FailNow()
+		}
+	default:
+		tb.Logf("exp scanner err but got: %T\n", e)
 	}
 }

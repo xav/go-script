@@ -34,11 +34,11 @@ func parseCode(t *testing.T, fset *token.FileSet, src string) []*ast.File {
 	return []*ast.File{file}
 }
 
-func testCompilation(t *testing.T, code string) {
+func compile(t *testing.T, code string) error {
 	t.Helper()
 	fset := token.NewFileSet()
 	files := parseCode(t, fset, code)
 	w := script.NewWorld()
 	_, err := w.CompilePackage(fset, files, "main")
-	Ok(t, err)
+	return err
 }

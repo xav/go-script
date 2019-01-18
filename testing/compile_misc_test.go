@@ -22,7 +22,8 @@ func TestWorld_CompileEmptyPackage(t *testing.T) {
 	code := `
 package main
 `
-	testCompilation(t, code)
+	err := compile(t, code)
+	Ok(t, err)
 }
 
 func TestWorld_AssemblerFunc(t *testing.T) {
@@ -31,7 +32,8 @@ package main
 
 func asmfunc(eaxArg, ecxArg uint32) (eax, ebx, ecx, edx uint32)
 `
-	testCompilation(t, code)
+	err := compile(t, code)
+	Ok(t, err)
 }
 
 func TestWorld_ParseHelloWorld(t *testing.T) {
@@ -62,5 +64,6 @@ func joinStrings(words []string) string {
     return strings.Join(words, ", ")
 }
 `
-	testCompilation(t, code)
+	err := compile(t, code)
+	Ok(t, err)
 }
