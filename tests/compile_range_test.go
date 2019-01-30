@@ -31,11 +31,51 @@ func main() {
 	Ok(t, err)
 }
 
+func TestRange_LitStringNoKey(t *testing.T) {
+	code := `
+package main
+
+func main() {
+	for _, v := range "abcd" {
+		print(i, "/", v, "\n")
+	}
+}`
+	err := compile(t, code)
+	Ok(t, err)
+}
+
+func TestRange_LitStringNoValue(t *testing.T) {
+	code := `
+package main
+
+func main() {
+	for i := range "abcd" {
+		print(i, "/", v, "\n")
+	}
+}`
+	err := compile(t, code)
+	Ok(t, err)
+}
+
 func TestRange_CompositeLitArray(t *testing.T) {
 	code := `
 package main
 
 func main() {
+	for i, v := range [4]int{1, 2, 3, 4} {
+		print(i, "/", v, "\n")
+	}
+}`
+	err := compile(t, code)
+	Ok(t, err)
+}
+
+func TestRange_CompositeLitArrayAssignment(t *testing.T) {
+	code := `
+package main
+
+func main() {
+	var i, v int
 	for i, v := range [4]int{1, 2, 3, 4} {
 		print(i, "/", v, "\n")
 	}
@@ -171,6 +211,106 @@ func main() {
         fmt.Println(elem)
 		print(elem, "\n")
     }
+}
+`
+	err := compile(t, code)
+	Ok(t, err)
+}
+
+func TestRange_Index(t *testing.T) {
+	code := `
+package main
+
+func main() {
+	a := [][]int{[]int{1,2,3},[]int{1,2,3}}
+	for i, v := range a[0] {
+		print(i, "/", v, "\n")
+	}
+}
+`
+	err := compile(t, code)
+	Ok(t, err)
+}
+
+func TestRange_Slice(t *testing.T) {
+	code := `
+package main
+
+func main() {
+	n := []int{1, 2, 3, 4}
+	for i, v := range n[1:] {
+		print(i, "/", v, "\n")
+	}
+}`
+	err := compile(t, code)
+	Ok(t, err)
+}
+
+func TestRange_Parentheses(t *testing.T) {
+	code := `
+package main
+
+func main() {
+	for i, v := range ("abcd") {
+		print(i, "/", v, "\n")
+	}
+}
+`
+	err := compile(t, code)
+	Ok(t, err)
+}
+
+func TestRange_ParenthesesChannel(t *testing.T) {
+	code := `
+package main
+
+func main() {
+	queue := make(chan string, 2)
+	queue <- "one"
+	queue <- "two"
+	close(queue)
+	
+	for elem := range queue {
+		print(elem, "\n")
+	}
+}
+`
+	err := compile(t, code)
+	Ok(t, err)
+}
+
+func TestRange_Selector(t *testing.T) {
+	code := ` 
+package main
+
+type Struct struct {
+	V []int
+}
+
+func main() {
+	V := Struct {V: []int{1, 2, 3} }
+	for i, v := range V.V {
+		print(i, "/", v, "\n")
+	}
+}
+`
+	err := compile(t, code)
+	Ok(t, err)
+}
+
+//TODO: Test func call for Array, Chan, Map, NamedType, String, and invalid ones
+func TestRange_FuncCallSlice(t *testing.T) {
+	code := `
+package main
+
+func gen() []int {
+	return []int{1, 2, 3, 4}
+}
+
+func main() {
+	for i, v := range gen() {
+		print(i, "/", v, "\n")
+	}
 }
 `
 	err := compile(t, code)

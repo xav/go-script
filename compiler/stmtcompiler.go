@@ -437,8 +437,114 @@ func (sc *stmtCompiler) compileLabeledStmt(stmt *ast.LabeledStmt) {
 	sc.compile(stmt.Stmt)
 }
 
+func (sc *stmtCompiler) getRangeExprType(t vm.Type, p token.Pos) (vm.Type, vm.Type) {
+	switch t := t.(type) {
+	case *types.ArrayType:
+		return builtins.IntType, t.Elem.Lit()
+	case *types.SliceType:
+		return builtins.IntType, t.Elem.Lit()
+	case *types.StringType:
+		return builtins.IntType, builtins.Uint8Type
+	case *types.MapType:
+		return t.Key.Lit(), t.Elem.Lit()
+	case *types.NamedType:
+		return t.Lit(), nil
+	case *types.ChanType:
+		sc.errorAt(p, "Channels are not implemented")
+		return t, nil
+	case *types.PtrType:
+		return sc.getRangeExprType(t.Elem, p)
+	default:
+		sc.errorAt(p, "cannot range over expression %T", t)
+		return nil, nil
+	}
+}
+
 func (sc *stmtCompiler) compileRangeStmt(stmt *ast.RangeStmt) {
-	panic("Range statement not implemented")
+	// Wrap the entire for in a block.
+	bc := sc.enterChild()
+	defer bc.exit()
+
+	// Compile range expression
+	ex := bc.CompileExpr(bc.Block, false, stmt.X)
+	if ex == nil {
+		return
+	}
+
+	// Infer k and v types.
+	kt, vt := sc.getRangeExprType(ex.ExprType.Lit(), ex.pos)
+	if kt == nil {
+		return
+	}
+	print(kt, vt)
+
+	// Compile init statement ////////////
+	//TODO: Check if it's a definition or assignment
+
+	k, ok := stmt.Key.(*ast.Ident)
+	if !ok {
+		sc.errorAt(stmt.Key.Pos(), "key must be an identifier in range expression")
+		return
+	}
+
+	var v *ast.Ident
+	if stmt.Value != nil {
+		v, ok = stmt.Value.(*ast.Ident)
+		if !ok {
+			sc.errorAt(stmt.Value.Pos(), "value must be an identifier in range expression")
+			return
+		}
+	}
+
+	if v != nil {
+		// lf := ls[0].evalAddr
+		sc.Push(func(t *vm.Thread) {
+			// assign(lf(t), t)
+		})
+	} else {
+		lfs := make([]func(*vm.Thread) vm.Value, 2)
+		// for i, l := range ls {
+		// 	lfs[i] = l.evalAddr
+		// }
+
+		sc.Push(func(t *vm.Thread) {
+			dest := make([]vm.Value, 2)
+			for i, lf := range lfs {
+				dest[i] = lf(t)
+			}
+			// assign(values.MultiV(dest), t)
+		})
+	}
+
+	print(k)
+	print(v)
+
+	bodyPC := badPC
+	iteratePC := badPC
+	endPC := badPC
+
+	// Compile body
+	bodyPC = sc.NextPC()
+	body := bc.enterChild()
+	if sc.stmtLabel != nil {
+		body.Label = sc.stmtLabel
+	} else {
+		body.Label = &Label{resolved: stmt.Pos()}
+	}
+	body.Label.desc = "for range loop"
+	body.Label.breakPC = &endPC
+	body.Label.continuePC = &iteratePC
+	body.compileStmts(stmt.Body)
+	body.exit()
+
+	// Compile iteration
+	iteratePC = sc.NextPC()
+	//TODO: compile iteration
+	sc.Push(func(t *vm.Thread) {
+		t.PC = bodyPC
+	})
+
+	endPC = sc.NextPC()
 }
 
 func (sc *stmtCompiler) compileReturnStmt(stmt *ast.ReturnStmt) {
@@ -492,6 +598,8 @@ func (sc *stmtCompiler) compileReturnStmt(stmt *ast.ReturnStmt) {
 func (sc *stmtCompiler) compileSelectStmt(stmt *ast.SelectStmt) {
 	panic("Select statement not implemented")
 }
+
+// Declarations ////////////////////////////////////////////////////////////////
 
 func (sc *stmtCompiler) compileSwitchStmt(stmt *ast.SwitchStmt) {
 	// Create implicit scope around switch
@@ -630,8 +738,6 @@ func (sc *stmtCompiler) compileSwitchStmt(stmt *ast.SwitchStmt) {
 		casePCs[ncases] = &endPC
 	}
 }
-
-// Declarations ////////////////////////////////////////////////////////////////
 
 func (sc *stmtCompiler) compileFuncDecl(fd *ast.FuncDecl) {
 	if !sc.Block.Global {
@@ -781,6 +887,8 @@ func (sc *stmtCompiler) compileTypeDecl(decl *ast.GenDecl) bool {
 	return ok
 }
 
+// Statement generation helpers ////////////////////////////////////////////////
+
 func (sc *stmtCompiler) compileVarDecl(decl *ast.GenDecl) error {
 	for _, spec := range decl.Specs {
 		spec := spec.(*ast.ValueSpec)
@@ -810,8 +918,6 @@ func (sc *stmtCompiler) compileVarDecl(decl *ast.GenDecl) error {
 	return nil
 }
 
-// Statement generation helpers ////////////////////////////////////////////////
-
 func (sc *stmtCompiler) defineVar(ident *ast.Ident, t vm.Type) *context.Variable {
 	v, prev := sc.Block.DefineVar(ident.Name, ident.Pos(), t)
 	if prev != nil {
@@ -833,6 +939,8 @@ func (sc *stmtCompiler) defineVar(ident *ast.Ident, t vm.Type) *context.Variable
 	return v
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 func (sc *stmtCompiler) definePkg(ident ast.Node, id, path string) *context.PkgIdent {
 	v, prev := sc.Block.DefinePackage(id, path, ident.Pos())
 	if prev != nil {
@@ -841,8 +949,6 @@ func (sc *stmtCompiler) definePkg(ident ast.Node, id, path string) *context.PkgI
 	}
 	return v
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 func (sc *stmtCompiler) doConstAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.Token, declTypeExpr ast.Expr) {
 	nerr := sc.NumError()
@@ -933,6 +1039,8 @@ func (sc *stmtCompiler) doConstAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.
 	}
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 func (sc *stmtCompiler) checkConstExpr(x ast.Expr) bool {
 	switch x := x.(type) {
 	case *ast.BasicLit:
@@ -969,8 +1077,6 @@ func (sc *stmtCompiler) checkConstExpr(x ast.Expr) bool {
 		return false
 	}
 }
-
-////////////////////////////////////////////////////////////////////////////////
 
 func (sc *stmtCompiler) doAssign(lhs []ast.Expr, rhs []ast.Expr, tok token.Token, declTypeExpr ast.Expr) {
 	nerr := sc.NumError()
