@@ -22,8 +22,9 @@ func (code Code) Exec(t *Thread) {
 	t.PC = 0
 
 	for l := uint(len(code)); t.PC < l; {
+		pc := t.PC
 		t.PC++
-		code[t.PC](t)
+		code[pc](t)
 	}
 
 	t.PC = opc
