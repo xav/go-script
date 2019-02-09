@@ -12,33 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package testing
+package tests
 
 import (
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"testing"
-
-	script "github.com/xav/go-script"
 )
 
-func parseCode(t *testing.T, fset *token.FileSet, src string) []*ast.File {
-	t.Helper()
-	file, err := parser.ParseFile(fset, "", src, 0)
-	if err != nil {
-		t.Error(err.Error())
-		return nil
-	}
+func TestVar_LitString(t *testing.T) {
+	code := `
+package main
 
-	return []*ast.File{file}
+var a = "abcd"
+func main() {
 }
-
-func compile(t *testing.T, code string) error {
-	t.Helper()
-	fset := token.NewFileSet()
-	files := parseCode(t, fset, code)
-	w := script.NewWorld()
-	_, err := w.CompilePackage(fset, files, "main")
-	return err
+`
+	err := compile(t, code)
+	Ok(t, err)
 }
