@@ -437,6 +437,38 @@ func (sc *stmtCompiler) compileLabeledStmt(stmt *ast.LabeledStmt) {
 	sc.compile(stmt.Stmt)
 }
 
+func (sc *stmtCompiler) genRangeKeyInit(xt vm.Type, r *Expr) func(kv vm.Value, t *vm.Thread) {
+	switch t := xt.(type) {
+	case *types.ArrayType:
+		return func(lv vm.Value, t *vm.Thread) {
+			lv.(values.IntValue).Set(t, 0)
+		}
+	case *types.SliceType:
+		return func(lv vm.Value, t *vm.Thread) {
+			lv.(values.IntValue).Set(t, 0)
+		}
+	case *types.StringType:
+		return func(lv vm.Value, t *vm.Thread) {
+			lv.(values.IntValue).Set(t, 0)
+		}
+	case *types.MapType:
+		return func(lv vm.Value, t *vm.Thread) {
+			lv.(values.IntValue).Set(t, 0)
+		}
+	case *types.NamedType:
+		sc.error("Named types are not implemented")
+		return nil
+	case *types.ChanType:
+		sc.error("Channels are not implemented")
+		return nil
+	case *types.PtrType:
+		return sc.genRangeKeyInit(t.Elem, r)
+	default:
+		sc.error("cannot range over expression %T", t)
+		return nil
+	}
+}
+
 func (sc *stmtCompiler) getRangeExprType(t vm.Type, p token.Pos) (vm.Type, vm.Type) {
 	switch t := t.(type) {
 	case *types.ArrayType:
@@ -461,6 +493,76 @@ func (sc *stmtCompiler) getRangeExprType(t vm.Type, p token.Pos) (vm.Type, vm.Ty
 }
 
 func (sc *stmtCompiler) compileRangeStmt(stmt *ast.RangeStmt) {
+	// Wrap the entire for in a block.
+	bc := sc.enterChild()
+	defer bc.exit()
+
+	// Compile range expression
+	rx := bc.CompileExpr(bc.Block, false, stmt.X)
+	if rx == nil {
+		return
+	}
+
+	rx = rx.derefArray()
+
+	var (
+		kt vm.Type
+		vt vm.Type
+		// intIndex bool
+	)
+
+	// Type check object
+	switch rt := rx.ExprType.Lit().(type) {
+	case *types.ArrayType:
+		kt = builtins.IntType
+		vt = rt.Elem
+	case *types.SliceType:
+		kt = builtins.IntType
+		vt = rt.Elem
+	case *types.StringType:
+		kt = builtins.IntType
+		vt = builtins.Uint8Type
+	case *types.MapType:
+		kt = rt.Key
+		vt = rt.Elem
+	case *types.ChanType:
+		sc.errorAt(rx.pos, "Channels are not implemented")
+		return
+	default:
+		sc.errorAt(rx.pos, "cannot range over expression %T", rt)
+		return
+	}
+
+	//TODO: DEBUG
+	print(kt)
+	print(vt)
+
+	// bodyPC := badPC
+	// iteratePC := badPC
+	// endPC := badPC
+
+	// ac, ok := sc.checkAssign(sc.pos, rx, "assignment", "value")
+	// c := &assignCompiler{
+	// 	Compiler:   sc.Compiler,
+	// 	pos:        rx.pos,
+	// 	rs:         rx,
+	// 	errOp:      errOp,
+	// 	errPosName: errPosName,
+	// }
+
+	// Compile init statement
+	// sc.Push(func(t *vm.Thread) {
+	// 	temp := lmt.Zero().(values.MultiV)
+	// 	assign(temp, t)
+	// 	// Copy to destination
+	// 	for i := 0; i < n; i++ {
+	// 		// TODO: Need to evaluate LHS before RHS
+	// 		lfs[i](t).Assign(t, temp[i])
+	// 	}
+	// })
+}
+
+func (sc *stmtCompiler) compileRangeStmtX(stmt *ast.RangeStmt) {
 	// Wrap the entire for in a block.
 	bc := sc.enterChild()
 	defer bc.exit()
