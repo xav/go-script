@@ -7,4 +7,4 @@ go-script
 [![Go Version](https://img.shields.io/badge/go-v1.11+-green.svg?style=flat)](https://github.com/xav/go-script)
 
 
-Information comming soon. Nothing remotely stable atm.
+Information coming soon. Nothing remotely stable atm.
